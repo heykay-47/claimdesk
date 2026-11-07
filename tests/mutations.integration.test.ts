@@ -11,7 +11,7 @@ import {
 import { Client } from "@neondatabase/serverless";
 import { drizzle, type NeonDatabase } from "drizzle-orm/neon-serverless";
 import { randomUUID } from "node:crypto";
-import { readFile } from "node:fs/promises";
+import { migrateTestSchema } from "./migrate-schema";
 import { eq } from "drizzle-orm";
 import * as schema from "../src/db/schema";
 import { seedId } from "../seed/data";
@@ -100,11 +100,7 @@ describe("audited workspace mutations against real Postgres", () => {
     await client.query("BEGIN");
     await client.query(`CREATE SCHEMA "${schemaName}"`);
     await client.query(`SET LOCAL search_path TO "${schemaName}"`);
-    const migration = (
-      await readFile("drizzle/0000_smiling_otto_octavius.sql", "utf8")
-    ).replaceAll('"public"', `"${schemaName}"`);
-    for (const sql of migration.split("--> statement-breakpoint"))
-      if (sql.trim()) await client.query(sql);
+    await migrateTestSchema(client, schemaName);
     for (const table of [
       "users",
       "payers",
@@ -475,6 +471,79 @@ describe("audited workspace mutations against real Postgres", () => {
     });
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error).toContain("documentId");
+  });
+  it("records settlement and optional deductions with the lifecycle and audit atomically", async () => {
+    const id = seedId("claim:CLM-3386");
+    await transitionClaim({
+      claimId: id,
+      action: "record_settlement",
+      amount: "35000.50",
+      deduction: { amount: "2000.25", reason: "CO_PAY" },
+      note: "Recorded from payer advice",
+    });
+    const [claim] = await database
+      .select()
+      .from(schema.claims)
+      .where(eq(schema.claims.id, id));
+    expect(claim).toMatchObject({
+      status: "SETTLED",
+      settledAmountPaise: BigInt(3500050),
+      deductionAmountPaise: BigInt(200025),
+      deductionReason: "CO_PAY",
+    });
+    const audits = await database
+      .select()
+      .from(schema.auditLogs)
+      .where(eq(schema.auditLogs.entityId, id));
+    expect(audits).toContainEqual(
+      expect.objectContaining({
+        action: "CLAIM_TRANSITION",
+        detail: expect.objectContaining({
+          action: "record_settlement",
+          deduction: { amountPaise: "200025", reason: "CO_PAY" },
+        }),
+      }),
+    );
+  });
+  it("leaves unrecorded deductions null and rejects incomplete or invalid captures", async () => {
+    const id = seedId("claim:CLM-3386");
+    for (const deduction of [
+      { amount: "0", reason: "CO_PAY" },
+      { amount: "20", reason: "UNKNOWN" },
+      { amount: "20" },
+    ])
+      await expect(
+        transitionClaim({
+          claimId: id,
+          action: "record_settlement",
+          amount: "35000",
+          deduction,
+        }),
+      ).rejects.toThrow();
+    await transitionClaim({
+      claimId: id,
+      action: "record_settlement",
+      amount: "35000",
+    });
+    const [claim] = await database
+      .select()
+      .from(schema.claims)
+      .where(eq(schema.claims.id, id));
+    expect(claim).toMatchObject({
+      settledAmountPaise: BigInt(3500000),
+      deductionAmountPaise: null,
+      deductionReason: null,
+    });
+    await client.query("SAVEPOINT deduction_guard");
+    try {
+      await expect(
+        client.query(
+          "UPDATE claims SET deduction_amount_paise = 100, deduction_reason = NULL WHERE code = 'CLM-3386'",
+        ),
+      ).rejects.toMatchObject({ code: "23514" });
+    } finally {
+      await client.query("ROLLBACK TO SAVEPOINT deduction_guard");
+    }
   });
   it("scopes private upload tokens to the exact file, type, size and a five-minute lifetime", async () => {
     const metadata = {

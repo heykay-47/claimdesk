@@ -3,7 +3,7 @@ import { z } from "zod";
 import { Check, CircleAlert, ChevronLeft, ArrowUpRight } from "lucide-react";
 import { claimFile } from "@/server/workspace";
 import { formatIST, formatMoney } from "@/domain/format";
-import { elapsedMinutes, IRDAI_WINDOWS_MINUTES } from "@/domain/deadline";
+import { elapsedMinutes } from "@/domain/deadline";
 import { STAGE_FOR_STATUS } from "@/domain/claim-status";
 import { StatusPill } from "@/components/workspace/primitives";
 import { Countdown } from "@/components/workspace/countdown";
@@ -13,6 +13,7 @@ import { TransitionControls } from "@/components/workspace/transition-controls";
 import { pendingRequiredFields } from "@/domain/preauth-fields";
 import { blockerText } from "@/domain/checklist-labels";
 import { PacketDownload } from "@/components/workspace/packet-download";
+import { DEDUCTION_LABELS } from "@/domain/settlement";
 export default async function ClaimPage({
   params,
   searchParams,
@@ -276,6 +277,18 @@ export default async function ClaimPage({
                   ...(claim.approvedAmountPaise !== null
                     ? [["Approved", formatMoney(claim.approvedAmountPaise)]]
                     : []),
+                  ...(claim.settledAmountPaise !== null
+                    ? [["Settled", formatMoney(claim.settledAmountPaise)]]
+                    : []),
+                  ...(claim.deductionAmountPaise !== null &&
+                  claim.deductionReason
+                    ? [
+                        [
+                          "Deduction",
+                          `${formatMoney(claim.deductionAmountPaise)} · ${DEDUCTION_LABELS[claim.deductionReason]}`,
+                        ],
+                      ]
+                    : []),
                   ["Assigned to", file.assignee],
                 ].map(([label, value]) => (
                   <div key={label}>
@@ -301,13 +314,11 @@ export default async function ClaimPage({
             <div className="panel-body text-xs space-y-5">
               <div>
                 <p className="font-medium">Admission → pre-auth sent</p>
-                <p
-                  className={`mono mt-1 ${preauth && elapsedMinutes(claim.admittedAt, preauth.at) > IRDAI_WINDOWS_MINUTES.PREAUTH ? "danger-text" : "muted"}`}
-                >
+                <p className="mono mt-1 muted">
                   {Math.round(
                     elapsedMinutes(claim.admittedAt, preauth?.at ?? new Date()),
                   )}{" "}
-                  min / 60 min
+                  min
                 </p>
                 <p className="muted mt-1">
                   {preauth
@@ -316,11 +327,11 @@ export default async function ClaimPage({
                 </p>
               </div>
               <div>
-                <p className="font-medium">Final bill → settlement</p>
+                <p className="font-medium">Final bill sent → settlement</p>
                 <p className="mono muted mt-1">
                   {final
-                    ? `${Math.round(elapsedMinutes(final.at, settled?.at ?? new Date()))} min / 180 min`
-                    : "Not started / 180 min"}
+                    ? `${Math.round(elapsedMinutes(final.at, settled?.at ?? new Date()))} min`
+                    : "Not started"}
                 </p>
               </div>
               {file.queries.map((query) => (

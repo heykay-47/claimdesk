@@ -9,7 +9,7 @@ import {
 } from "vitest";
 import { Client } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-serverless";
-import { readFile } from "node:fs/promises";
+import { migrateTestSchema } from "./migrate-schema";
 import { randomUUID } from "node:crypto";
 import * as schema from "../src/db/schema";
 import { seedId } from "../seed/data";
@@ -51,11 +51,7 @@ describe("real Postgres foundation", () => {
     await client.query("BEGIN");
     await client.query(`CREATE SCHEMA "${schemaName}"`);
     await client.query(`SET LOCAL search_path TO "${schemaName}"`);
-    const migration = (
-      await readFile("drizzle/0000_smiling_otto_octavius.sql", "utf8")
-    ).replaceAll('"public"', `"${schemaName}"`);
-    for (const statement of migration.split("--> statement-breakpoint"))
-      if (statement.trim()) await client.query(statement);
+    await migrateTestSchema(client, schemaName);
     for (const table of [
       "users",
       "payers",

@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import type { ClaimStatus } from "../src/domain/claim-status";
+import type { DeductionReason } from "../src/domain/settlement";
 export function seedId(key: string) {
   const hex = createHash("sha256")
     .update(`claimdesk-demo-v1:${key}`)
@@ -108,6 +109,10 @@ export type SeedClaim = {
   status: ClaimStatus;
   amount: number;
   docs: string[];
+  settlement?: {
+    amount: number;
+    deduction: { amount: number; reason: DeductionReason } | null;
+  };
 };
 const baseDocs = [
   "PREAUTH_FORM",
@@ -197,6 +202,10 @@ export const SEED_CLAIMS: SeedClaim[] = [
     procedure: 1,
     status: "SETTLED",
     amount: 225000,
+    settlement: {
+      amount: 207000,
+      deduction: { amount: 13000, reason: "ROOM_RENT_CAP" },
+    },
     docs: [
       ...baseDocs,
       "XRAY_REPORT",
@@ -216,11 +225,57 @@ export const SEED_CLAIMS: SeedClaim[] = [
     amount: 62000,
     docs: [...baseDocs, "CBC_REPORT"],
   },
+  {
+    code: "CLM-3389",
+    name: "Arun Chavan",
+    age: 61,
+    gender: "Male",
+    payer: 0,
+    procedure: 0,
+    status: "SETTLED",
+    amount: 98000,
+    settlement: {
+      amount: 90000,
+      deduction: { amount: 3000, reason: "NON_PAYABLE_ITEM" },
+    },
+    docs: [
+      ...baseDocs,
+      "ULTRASOUND_REPORT",
+      "DISCHARGE_SUMMARY",
+      "FINAL_BILL",
+      "INVESTIGATION_BILLS",
+    ],
+  },
+  {
+    code: "CLM-3390",
+    name: "Savita Rane",
+    age: 54,
+    gender: "Female",
+    payer: 1,
+    procedure: 4,
+    status: "SETTLED",
+    amount: 46000,
+    settlement: {
+      amount: 36900,
+      deduction: { amount: 4100, reason: "CO_PAY" },
+    },
+    docs: [
+      ...baseDocs,
+      "DISCHARGE_SUMMARY",
+      "FINAL_BILL",
+      "INVESTIGATION_BILLS",
+    ],
+  },
 ];
 export function seedAdmission(claim: SeedClaim, now = new Date()) {
   const index = SEED_CLAIMS.findIndex((entry) => entry.code === claim.code);
+  const hours: Record<string, number> = {
+    "CLM-3382": 2,
+    "CLM-3383": 1,
+    "CLM-3386": 8,
+  };
   return new Date(
-    now.getTime() - (index === 3 ? 1 : 50 + index * 4) * 3_600_000,
+    now.getTime() - (hours[claim.code] ?? 50 + index * 4) * 3_600_000,
   );
 }
 export function seedFields(claim: SeedClaim, admittedAt: Date) {

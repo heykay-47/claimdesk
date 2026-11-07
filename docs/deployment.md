@@ -29,6 +29,10 @@ The login page has buttons that fill these credentials. `/` redirects to `/claim
 
 On a claim file, Download packet builds the claim's current-stage PDF. The cover lists readiness blockers, effective checklist states, confirmed pre-auth fields, preparation time and person. Confirmed files follow in checklist order, then other confirmed files. Incomplete packets remain available with a warning. Downloads require a session, disable caching and write `PACKET_DOWNLOAD` audit rows. Unreadable files fail the export rather than disappearing from it. Exports are limited to 100 files, 50 MB of inputs and 300 pages. No packet is sent to a payer.
 
+`/insights` is available to both roles. Pending-decision waits start at the latest recorded pre-auth or final-bill submission, with hospital preparation shown separately. Claims in Query are excluded from pending payer decisions. The 60-minute and 180-minute references do not prove insurer receipt, complete documentation or SLA compliance. Same-day query performance uses IST calendar days and answered queries with timestamps. Unrecorded deductions are excluded rather than counted as zero.
+
+Migration `0001_first_terror.sql` adds nullable settlement amount and paired deduction amount/reason columns. Money remains integer paise. Run `pnpm db:migrate` before starting this version. Settlement can capture one optional deduction reason and positive amount. The seed includes three settled claims with room-rent, co-pay and non-payable deductions. Existing settled records remain valid with null captures.
+
 Run these commands:
 
 ```sh

@@ -1,7 +1,14 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Files, Inbox, ListChecks, History, LogOut } from "lucide-react";
+import {
+  Files,
+  Inbox,
+  ListChecks,
+  History,
+  LogOut,
+  ChartNoAxesColumn,
+} from "lucide-react";
 import { logout } from "@/app/login/actions";
 import type { SessionUser } from "@/server/auth";
 export function Sidebar({
@@ -17,6 +24,7 @@ export function Sidebar({
   const items = [
     { href: "/claims", label: "Claims", icon: Files },
     { href: "/queries", label: "Queries", icon: Inbox },
+    { href: "/insights", label: "Insights", icon: ChartNoAxesColumn },
     ...(user.role === "HEAD"
       ? [
           {

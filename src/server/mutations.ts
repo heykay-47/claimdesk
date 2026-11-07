@@ -26,6 +26,11 @@ import { GeminiAiClient } from "@/ai/gemini";
 import { requireRole, requireUser } from "./auth";
 import { checklistInTransaction, type Transaction } from "./workspace";
 import { readDocument } from "./storage";
+import {
+  DEDUCTION_REASONS,
+  DEDUCTION_LABELS,
+  type SettlementDeduction,
+} from "@/domain/settlement";
 
 export class InputError extends Error {}
 const text = z.string().trim().min(1).max(300);
@@ -76,6 +81,7 @@ async function advance(
   actorId: string,
   noteText: string,
   amount?: bigint,
+  deduction?: SettlementDeduction | null,
 ) {
   const transition = nextActions(claim.status).find(
     (entry) => entry.action === action,
@@ -110,6 +116,13 @@ async function advance(
       ...(action === "record_approval" && amount !== undefined
         ? { approvedAmountPaise: amount }
         : {}),
+      ...(action === "record_settlement"
+        ? {
+            settledAmountPaise: amount,
+            deductionAmountPaise: deduction?.amount ?? null,
+            deductionReason: deduction?.reason ?? null,
+          }
+        : {}),
     })
     .where(eq(claims.id, claim.id));
   await tx.insert(claimEvents).values({
@@ -117,13 +130,26 @@ async function advance(
     fromStatus: claim.status,
     toStatus: transition.to,
     actorId,
-    note: action === "record_settlement" && amount !== undefined ? `${noteText}${noteText ? "\n" : ""}Settled amount: ${formatMoney(amount)}` : noteText,
+    note:
+      action === "record_settlement" && amount !== undefined
+        ? `${noteText}${noteText ? "\n" : ""}Settled amount: ${formatMoney(amount)}${deduction ? `\nDeducted: ${formatMoney(deduction.amount)} (${DEDUCTION_LABELS[deduction.reason]})` : ""}`
+        : noteText,
   });
   await record(tx, actorId, "CLAIM_TRANSITION", "claim", claim.id, {
     from: claim.status,
     to: transition.to,
     action,
     ...(amount !== undefined ? { amountPaise: amount.toString() } : {}),
+    ...(action === "record_settlement"
+      ? {
+          deduction: deduction
+            ? {
+                amountPaise: deduction.amount.toString(),
+                reason: deduction.reason,
+              }
+            : null,
+        }
+      : {}),
   });
 }
 export async function createClaim(input: unknown) {
@@ -174,10 +200,22 @@ export async function transitionClaim(input: unknown) {
       action: z.enum(TRANSITIONS.map((t) => t.action)),
       note,
       amount: rupees.optional(),
+      deduction: z
+        .object({
+          amount: rupees.refine(
+            (amount) => amount > BigInt(0),
+            "Deduction must be greater than zero",
+          ),
+          reason: z.enum(DEDUCTION_REASONS),
+        })
+        .nullable()
+        .optional(),
     })
     .parse(input);
   if (["record_query", "answer_query"].includes(data.action))
     throw new InputError("Use the query inbox to record or answer a query.");
+  if (data.deduction && data.action !== "record_settlement")
+    throw new InputError("Deductions can only be recorded with settlement.");
   if (
     ["record_approval", "record_settlement"].includes(data.action) &&
     data.amount === undefined
@@ -191,6 +229,7 @@ export async function transitionClaim(input: unknown) {
       user.id,
       data.note,
       data.amount,
+      data.deduction,
     ),
   );
 }

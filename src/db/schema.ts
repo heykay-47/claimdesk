@@ -1,4 +1,5 @@
 import { sql } from "drizzle-orm";
+import { DEDUCTION_REASONS } from "../domain/settlement";
 import {
   bigint,
   check,
@@ -45,6 +46,7 @@ export const fieldStatus = pgEnum("field_status", [
   "REJECTED",
 ]);
 export const queryStatus = pgEnum("query_status", ["OPEN", "ANSWERED"]);
+export const deductionReason = pgEnum("deduction_reason", DEDUCTION_REASONS);
 const id = () => uuid("id").defaultRandom().primaryKey();
 const time = (name: string) => timestamp(name, { withTimezone: true });
 
@@ -138,6 +140,9 @@ export const claims = pgTable(
       mode: "bigint",
     }).notNull(),
     approvedAmountPaise: bigint("approved_amount_paise", { mode: "bigint" }),
+    settledAmountPaise: bigint("settled_amount_paise", { mode: "bigint" }),
+    deductionAmountPaise: bigint("deduction_amount_paise", { mode: "bigint" }),
+    deductionReason: deductionReason("deduction_reason"),
     status: claimStatus("status").notNull().default("PREAUTH_DRAFT"),
     assignedTo: uuid("assigned_to")
       .notNull()
@@ -154,6 +159,14 @@ export const claims = pgTable(
     check(
       "valid_claim_money",
       sql`${t.estimatedAmountPaise} >= 0 AND (${t.approvedAmountPaise} IS NULL OR ${t.approvedAmountPaise} >= 0)`,
+    ),
+    check(
+      "valid_settled_money",
+      sql`${t.settledAmountPaise} IS NULL OR ${t.settledAmountPaise} >= 0`,
+    ),
+    check(
+      "valid_settlement_deduction",
+      sql`(${t.deductionAmountPaise} IS NULL AND ${t.deductionReason} IS NULL) OR (${t.deductionAmountPaise} IS NOT NULL AND ${t.deductionAmountPaise} > 0 AND ${t.deductionReason} IS NOT NULL)`,
     ),
   ],
 );

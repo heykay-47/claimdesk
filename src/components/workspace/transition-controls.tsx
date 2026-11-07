@@ -12,6 +12,7 @@ import {
 import type { ClaimFile } from "@/server/workspace";
 import { runAction } from "@/app/actions";
 import { blockerText } from "@/domain/checklist-labels";
+import { DEDUCTION_REASONS, DEDUCTION_LABELS } from "@/domain/settlement";
 export const ACTION_LABELS: Record<ClaimAction, string> = {
   submit_preauth: "Mark pre-auth sent",
   record_query: "Log incoming query",
@@ -28,6 +29,7 @@ export function TransitionControls({ file }: { file: ClaimFile }) {
   const [action, setAction] = useState<ClaimAction | null>(null);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
+  const [hasDeduction, setHasDeduction] = useState(false);
   const router = useRouter();
   const openQueries = file.queries.filter((q) => q.status === "OPEN");
   const options = nextActions(file.claim.status);
@@ -79,6 +81,7 @@ export function TransitionControls({ file }: { file: ClaimFile }) {
               }
               onClick={() => {
                 setAction(option.action);
+                setHasDeduction(false);
                 setError("");
                 dialog.current?.showModal();
               }}
@@ -143,6 +146,14 @@ export function TransitionControls({ file }: { file: ClaimFile }) {
                 claimId: file.claim.id,
                 action,
                 note: form.get("note"),
+                ...(action === "record_settlement" && hasDeduction
+                  ? {
+                      deduction: {
+                        amount: form.get("deductionAmount"),
+                        reason: form.get("deductionReason"),
+                      },
+                    }
+                  : {}),
                 ...(["record_approval", "record_settlement"].includes(
                   action ?? "",
                 )
@@ -176,6 +187,48 @@ export function TransitionControls({ file }: { file: ClaimFile }) {
                   required
                 />
               </label>
+            )}
+            {action === "record_settlement" && (
+              <div className="mt-4">
+                <label className="checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={hasDeduction}
+                    onChange={(event) => setHasDeduction(event.target.checked)}
+                  />
+                  Record a deduction
+                </label>
+                {hasDeduction && (
+                  <>
+                    <label className="field">
+                      Deduction amount (₹)
+                      <input
+                        className="control mono"
+                        type="number"
+                        name="deductionAmount"
+                        min="0.01"
+                        step="0.01"
+                        required
+                      />
+                    </label>
+                    <label className="field">
+                      Deduction reason
+                      <select
+                        className="control"
+                        name="deductionReason"
+                        required
+                      >
+                        <option value="">Choose reason</option>
+                        {DEDUCTION_REASONS.map((reason) => (
+                          <option key={reason} value={reason}>
+                            {DEDUCTION_LABELS[reason]}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </>
+                )}
+              </div>
             )}
             <label className="field">
               Note (optional)

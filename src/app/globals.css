@@ -265,6 +265,15 @@ fieldset { min-width: 0; }
 .rule-note { min-width: 170px; }
 .rule-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; min-width: 95px; }
 .rule-add-row { background: #fafaf9; }
+.insights-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start; }
+.insights-table { min-width: 850px; }
+.insight-metric { display: flex; gap: 16px; align-items: baseline; justify-content: space-between; font-size: .8125rem; }
+.insight-metric strong { font-weight: 600; }
+.insight-track { height: 6px; background: #f0eeec; border-radius: 3px; overflow: hidden; }
+.insight-track > div { height: 100%; background: #0f766e; }
+.insight-track.exceeded > div { background: #b91c1c; }
+.insights-table .insight-track { margin-top: 7px; max-width: 180px; }
+@media (max-width: 1023px) { .insights-grid { grid-template-columns: 1fr; } }
 .field-review .control { margin-top: 11px; }
 .source-quote { color: #706b66; font-size: .75rem; margin: 10px 0; padding-left: 12px; border-left: 1px solid #d6d3d1; white-space: pre-wrap; }
 .document-preview { position: sticky; top: 24px; overflow: hidden; }

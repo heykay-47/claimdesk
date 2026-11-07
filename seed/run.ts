@@ -284,6 +284,13 @@ export async function resetDemo({
         ].includes(claim.status)
           ? BigInt(claim.amount - 5000) * BigInt(100)
           : null,
+        settledAmountPaise: claim.settlement
+          ? BigInt(claim.settlement.amount) * BigInt(100)
+          : null,
+        deductionAmountPaise: claim.settlement?.deduction
+          ? BigInt(claim.settlement.deduction.amount) * BigInt(100)
+          : null,
+        deductionReason: claim.settlement?.deduction?.reason ?? null,
         status: claim.status,
         assignedTo: desk,
         createdAt: admittedAt,

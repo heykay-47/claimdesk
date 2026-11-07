@@ -12,6 +12,9 @@
 - [CODE] Integration tests use a new schema inside a transaction, copy seeded fixtures, and roll back everything.
 
 ## [PROGRESS]
+- 2026-11-07 [TOOL] Phase 3 units 1-3 committed as 71839a4, e966c79 and fcd5975. Fresh transactional reset, secured cron and head action, dense rules, immediate filters, confirmed-field grouping, regenerated in-memory PDFs and audited packet export are verified. No push.
+- 2026-11-07 [TOOL] Additive settlement migration 0001 applied after isolated-schema tests. Insights and deduction capture pass all 83 tests, TypeScript, lint and build. Real browser settlement updated the dashboard; reseed restores it before final QA.
+- [TOOL] Real regenerated PDF and handwritten-input smoke passed 2/2 after pinning Gemini request API v1beta. SDK 3 defaults to v1, which rejected the system instruction with 400.
 - 2026-11-07 [TOOL] Phase 2 implements the worklist, new claim, claim file, pre-auth review, query inbox/detail/logging, head-only checklist rules, audit log, shell and polished login. See docs/phase-2-report.md.
 - [TOOL] Backend and integration coverage committed as ed84696. Product screens and the synthetic ultrasound upload fixture committed as 92b4fbc. No push or deployment was performed.
 - [TOOL] Gemini fallback commit 07e83f8 adds transient-only model fallback within 45 seconds and explicit N/2 smoke reporting. Final real smoke passed 2/2. Real browser ultrasound upload classified at 98%, stayed unconfirmed, and changed readiness only after confirmation.
