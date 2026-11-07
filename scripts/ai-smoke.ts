@@ -13,6 +13,7 @@ async function main() {
     label,
     aiHint,
   }));
+  let passed = 0;
   for (const [file, mime] of [
     ["preauth-form.pdf", "application/pdf"],
     ["handwritten-notes.png", "image/png"],
@@ -24,6 +25,7 @@ async function main() {
         catalogue,
       );
       console.log(JSON.stringify({ file, result }, null, 2));
+      passed += 1;
     } catch (error) {
       // The provider message may contain request data, so the smoke report uses only its status.
       const status =
@@ -36,9 +38,10 @@ async function main() {
           status,
         }),
       );
-      process.exitCode = 1;
     }
   }
+  console.log(`AI smoke: ${passed}/2 files classified and validated.`);
+  process.exitCode = passed === 2 ? 0 : 1;
 }
 main().catch(() => {
   console.error("AI smoke could not start");

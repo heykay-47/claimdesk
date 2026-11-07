@@ -76,7 +76,7 @@ export async function classifyForReview(
     ];
     return {
       status: "NEEDS_REVIEW" as const,
-      documentTypeId: type?.id ?? null,
+      documentTypeId: unsure ? null : (type?.id ?? null),
       aiDocumentTypeKey: result.document_type_key,
       aiConfidence: result.confidence,
       aiReason: unsure ? `AI unsure. ${result.reason}` : result.reason,
