@@ -1,9 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 420" font-family="Geist, Inter, Helvetica, Arial, sans-serif" font-size="12">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 420" font-family="Helvetica, Arial, sans-serif" font-size="12">
   <style>
     .box { fill: #ffffff; stroke: #d6d3d1; stroke-width: 1; }
     .core { fill: #f0fdfa; stroke: #0f766e; }
-    .t { font-weight: 600; fill: #1c1917; font-size: 13px; }
-    .f { fill: #57534e; font-size: 11px; }
+    .t { font-weight: 600; fill: #1c1917; font-size: 12px; }
+    .f { fill: #57534e; font-size: 9.5px; }
     .l { stroke: #a8a29e; stroke-width: 1.2; fill: none; }
     .n { fill: #78716c; font-size: 10px; }
   </style>

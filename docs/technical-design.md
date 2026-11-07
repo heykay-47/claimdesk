@@ -159,6 +159,8 @@ The client is `src/ai/gemini.ts` behind a two-method interface (`classifyAndExtr
 
 **Measured on production (7 November 2026):** an ultrasound PDF renamed `scan_0042.pdf`, so the filename gives no hint, was classified as `ULTRASOUND_REPORT` with confidence 1.0. A PNG photo of a handwritten admission note was classified as `DOCTOR_NOTES` with confidence 0.95, and its patient name, age, diagnosis, proposed treatment and doctor were extracted with verbatim snippets. Both stayed in `NEEDS_REVIEW` until a person confirmed them.
 
+![Identity guard: a note for another patient is excluded from readiness, pre-auth values and the packet until someone removes it or confirms it](screenshots/patient-mismatch-desktop.png)
+
 **Limitations.** These results come from synthetic documents generated for the demo. Real scans will be noisier, and accuracy has not been measured on a labelled set of real documents. The confidence score is the model's self-report, not a calibrated probability. The 0.75 threshold is a starting point to tune with the desk. The free Gemini tier has daily quotas. Production would need a paid tier or a regional deployment of the model (see section 8).
 
 ## 8. Security and privacy
@@ -205,15 +207,15 @@ The IRDAI windows (1 hour for cashless decisions, 3 hours for discharge) are sho
 
 | Layer | Tool | Count | What it proves |
 | --- | --- | --- | --- |
-| Domain unit | Vitest | {{UNIT}} | Every precedence tier, waivers, freshness boundaries, every slot state, unsorted and mismatch blockers, required fields, illegal transitions, gates, deadline states at their boundaries, patient-name matching |
+| Unit | Vitest | 93 | Every precedence tier, waivers, freshness boundaries, every slot state, unsorted and mismatch blockers, required fields, illegal transitions, gates, deadline states at their boundaries, patient-name matching (32 cases of Indian name forms), AI review rules, packet contents, insights arithmetic, session tokens, the login limiter |
 | AI client | Vitest with a stubbed SDK | 9 | Fallback on 429/503/504/timeout, no retry on 400/401 or invalid output, model back-off, Gemini 2.5 thinking budget |
-| Integration | Vitest, real Postgres | {{INTEGRATION}} | Role enforcement in server functions, the three sample claims' checklists, submission gate refusal, uploads with the fake AI, AI failure to unsorted, move and confirm, query logging and deadlines, last reply returns the claim to pre-auth, executive blocked from rule changes, packet contents |
-| End to end | Playwright, production build | {{E2E}} | The journeys in section 6 for both roles, run against `pnpm build && pnpm start` |
+| Integration | Vitest, real Postgres | 27 | Role enforcement in server functions, the three sample claims' checklists, submission gate refusal, uploads with the fake AI, AI failure to unsorted, move and confirm, query logging and deadlines, last reply returns the claim to pre-auth, executive blocked from rule changes, packet contents |
+| End to end | Playwright, production build | 5 | The journeys in section 6 for both roles, run against `pnpm build && pnpm start` |
 | Production smoke | Real Gemini, live deployment | manual | Section 7 measurements, cron authorisation (401 without the secret, 200 with it), login and upload on the live site |
 
 Integration tests run inside a unique Postgres schema within a transaction that is rolled back, so they never change the demo data. The end-to-end suite uses the fake AI client for determinism. It removes only the claims and files it created, then reseeds.
 
-Last run: {{TEST_SUMMARY}}
+Last full run, on 7 November 2026: `pnpm lint` and `pnpm exec tsc --noEmit` were clean, `pnpm test` passed 129 of 129, `pnpm test:e2e` passed 5 of 5 against a production build in 3.9 minutes, and `pnpm build` succeeded. After the last deploy, a real-Gemini check on production flagged a wrong-patient note in the claim header in 8.6 seconds.
 
 ## 11. Assumptions
 
