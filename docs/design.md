@@ -26,13 +26,25 @@ The login limit allows five attempts per IP and email pair, plus thirty attempts
 
 ## AI and private files
 
-The Gemini adapter uses an explicit response schema and validates JSON with Zod. Files are limited to 10 MB. Requests time out after 25 seconds and do not retry automatically. Lower reasoning effort reduces unnecessary work on extraction requests. The model name is configurable.
+The Gemini adapter uses an explicit response schema and validates JSON with Zod. Files are limited to 10 MB. Phase 2 supersedes the original single-model 25-second timeout with an overall 45-second budget shared between the primary model and configured fallbacks. Only transient 429, 503, 504, unavailable and timeout failures permit fallback. Invalid request or output validation errors stop immediately. The document’s AI reason records the answering model.
 
 `classifyForReview` always returns `NEEDS_REVIEW` on success. Proposed fields remain `PENDING`. Low confidence and unknown catalogue keys add an `AI unsure` marker. Failures return `FAILED` with a safe error message, no document type, and no proposed fields. Query failure returns no summary and an error so the caller can keep the original email visible.
 
 The query AI contract returns `deadline_iso`. Persist it as `queries.due_at` through `queryDueAt`; otherwise use the payer's reply window. The JSON summary's `deadline_text` is presentation metadata, not the authoritative deadline.
 
-Private Blob pathnames stay on the server. The authenticated file route checks the session, looks up the document, reads a private stream, and inserts a view or download audit row. Responses disable browser caching and allow only same-origin framing for the later document review screen.
+Phase 2 uses scoped direct browser uploads to keep the full 10 MB limit deployable. A five-minute token permits one user-scoped path, one MIME type and the exact declared file size, with overwrites disabled. The completion route checks the authenticated actor’s upload permission, reconstructs the path rather than accepting an arbitrary URL, verifies the private object’s type and size, and records the document and audit row in one transaction. Repeated completion does not duplicate document or extraction records. Interrupted uploads before completion do not create blocking placeholder documents; orphan-object lifecycle cleanup is a production operational follow-up.
+
+The authenticated file route checks the session, looks up the document, reads a private stream, and inserts a view or download audit row. Responses disable browser caching and allow only same-origin framing. The browser sees a scoped upload pathname, not a public read link or store credential. Previews and downloads only use the authenticated application route.
+
+## Workspace mutations and interface
+
+Mutations authenticate the current database user and parse inputs with Zod. Claim changes lock the claim row. Gates are evaluated from transaction-loaded documents, rules and reviewed fields, not client-provided status. Changes, lifecycle events and audit rows commit together. A reply closes only its own query; only the final open query returns a Query claim to Pre-auth sent. Human document corrections are not overwritten by an AI request that finishes later.
+
+Ordinary database queries use the Neon Pool driver’s HTTP-query mode. Interactive transactions use its WebSocket connection. This avoids retaining idle sockets for independent worklist reads while retaining atomic claim mutations.
+
+The worklist uses URL filters and a compact KPI strip. The claim file shows its first blocker and next query deadline above the timeline. Missing, stale and unverified slots lead, and satisfied documents are collapsed. Rule-source explanations are keyboard-accessible disclosures. A Move to menu is the keyboard alternative to document dragging. The mobile layout puts the next action before the longer file content.
+
+The visual system uses stone surfaces, 1 px borders, Geist sans, mono numerals, and deep teal for action and focus. Red, amber and emerald communicate blocked, review and satisfied states. There are no decorative illustrations or animations. Loading skeletons, empty states, retry boundaries, confirmation dialogs and result toasts cover the primary surfaces.
 
 ## Residency and privacy
 
