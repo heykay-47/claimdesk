@@ -1,6 +1,6 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { GenerateContentResponse } from "@google/genai";
-import { GeminiAiClient } from "../src/ai/gemini";
+import { GeminiAiClient, resetModelCoolDown } from "../src/ai/gemini";
 
 function response(value: unknown) {
   const result = new GenerateContentResponse();
@@ -17,6 +17,24 @@ const classification = {
   fields: [],
 };
 describe("Gemini model fallback", () => {
+  beforeEach(resetModelCoolDown);
+  it("skips a rate-limited model on the next call instead of waiting on it again", async () => {
+    const generate = vi
+      .fn()
+      .mockRejectedValueOnce(
+        Object.assign(new Error("Quota exhausted"), { status: 429 }),
+      )
+      .mockResolvedValue(response(classification));
+    const ai = new GeminiAiClient("primary", 25000, generate, ["fallback"]);
+    const pdf = new Uint8Array([1]);
+    await ai.classifyAndExtract(pdf, "application/pdf", []);
+    await ai.classifyAndExtract(pdf, "application/pdf", []);
+    expect(generate.mock.calls.map(([input]) => input.model)).toEqual([
+      "primary",
+      "fallback",
+      "fallback",
+    ]);
+  });
   it.each([503, 429, 504])(
     "falls back after transient %s and records the answering model",
     async (status) => {

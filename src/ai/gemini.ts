@@ -61,6 +61,13 @@ const summaryResponse: Schema = {
     deadline_iso: nullableString,
   },
 };
+// A model that is rate-limited or overloaded is skipped for a while, so one slow
+// failure does not delay every upload that follows on the same warm instance.
+const COOL_DOWN_MS = 5 * 60_000;
+const coolingUntil = new Map<string, number>();
+export function resetModelCoolDown() {
+  coolingUntil.clear();
+}
 export class GeminiAiClient implements AiClient {
   private readonly generateContent: (
     input: GenerateContentParameters,
@@ -87,7 +94,11 @@ export class GeminiAiClient implements AiClient {
   }
   private async generate(parts: Part[], responseSchema: Schema) {
     const started = Date.now();
-    const models = [...new Set([this.model, ...this.fallbackModels])];
+    const configured = [...new Set([this.model, ...this.fallbackModels])];
+    const available = configured.filter(
+      (model) => (coolingUntil.get(model) ?? 0) <= started,
+    );
+    const models = available.length > 0 ? available : configured;
     for (const [index, model] of models.entries()) {
       const remaining = this.budgetMs - (Date.now() - started);
       if (remaining <= 0) throw new Error("AI processing timed out");
@@ -132,7 +143,9 @@ export class GeminiAiClient implements AiClient {
             /UNAVAILABLE|timeout|timed out|abort|deadline/i.test(
               `${error.name} ${error.message}`,
             ));
-        if (!transient || index === models.length - 1) throw error;
+        if (!transient) throw error;
+        coolingUntil.set(model, Date.now() + COOL_DOWN_MS);
+        if (index === models.length - 1) throw error;
         continue;
       }
       return { value: JSON.parse(response.text ?? ""), model };

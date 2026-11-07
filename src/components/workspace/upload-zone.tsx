@@ -86,11 +86,15 @@ export function UploadZone({ claimId }: { claimId: string }) {
         router.refresh();
       } catch (error) {
         update(
-          error instanceof Error
-            ? error.message
-            : "Upload failed. Please retry.",
+          error instanceof TypeError
+            ? "Connection dropped. Check the checklist before retrying."
+            : error instanceof Error
+              ? error.message
+              : "Upload failed. Please retry.",
           true,
         );
+        // The server may have finished even though the response was lost.
+        router.refresh();
       }
     }
     setBusy(false);
