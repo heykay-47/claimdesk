@@ -27,6 +27,8 @@ The login page has buttons that fill these credentials. `/` redirects to `/claim
 
 ## Verify changes
 
+On a claim file, Download packet builds the claim's current-stage PDF. The cover lists readiness blockers, effective checklist states, confirmed pre-auth fields, preparation time and person. Confirmed files follow in checklist order, then other confirmed files. Incomplete packets remain available with a warning. Downloads require a session, disable caching and write `PACKET_DOWNLOAD` audit rows. Unreadable files fail the export rather than disappearing from it. Exports are limited to 100 files, 50 MB of inputs and 300 pages. No packet is sent to a payer.
+
 Run these commands:
 
 ```sh

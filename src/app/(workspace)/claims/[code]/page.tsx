@@ -11,6 +11,8 @@ import { ChecklistBoard } from "@/components/workspace/checklist-board";
 import { UploadZone } from "@/components/workspace/upload-zone";
 import { TransitionControls } from "@/components/workspace/transition-controls";
 import { pendingRequiredFields } from "@/domain/preauth-fields";
+import { blockerText } from "@/domain/checklist-labels";
+import { PacketDownload } from "@/components/workspace/packet-download";
 export default async function ClaimPage({
   params,
   searchParams,
@@ -27,12 +29,7 @@ export default async function ClaimPage({
   const file = await claimFile(code, stage);
   const { claim, currentChecklist: checklist } = file;
   const firstGap = checklist.blockers[0];
-  const reason =
-    firstGap?.kind === "DOCUMENT"
-      ? `${file.ref.types.find((t) => t.id === firstGap.documentTypeId)?.label} ${firstGap.state === "MISSING" ? "missing" : firstGap.state === "STALE" ? "is stale" : "needs confirmation"}`
-      : firstGap?.kind === "FIELD"
-        ? `${firstGap.label} needs review`
-        : "Unsorted documents need review";
+  const reason = firstGap ? blockerText(firstGap, file.ref.types) : "";
   const open = file.queries.filter((q) => q.status === "OPEN");
   const milestones = [
     { label: "Pre-auth", status: "PREAUTH_SUBMITTED" },
@@ -233,6 +230,13 @@ export default async function ClaimPage({
               ) : (
                 <TransitionControls file={file} />
               )}
+              <div className="mt-5 pt-4 border-t">
+                <PacketDownload
+                  code={claim.code}
+                  blockers={checklist.blockers.length}
+                  stage={STAGE_FOR_STATUS[claim.status]}
+                />
+              </div>
             </div>
           </section>
           {open.length > 0 && (

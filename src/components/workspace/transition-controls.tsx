@@ -11,6 +11,7 @@ import {
 } from "@/domain/claim-status";
 import type { ClaimFile } from "@/server/workspace";
 import { runAction } from "@/app/actions";
+import { blockerText } from "@/domain/checklist-labels";
 export const ACTION_LABELS: Record<ClaimAction, string> = {
   submit_preauth: "Mark pre-auth sent",
   record_query: "Log incoming query",
@@ -35,11 +36,7 @@ export function TransitionControls({ file }: { file: ClaimFile }) {
       t.gate && t.gate !== "QUERIES_ANSWERED" && !file.currentChecklist.ready,
   );
   const blockers = file.currentChecklist.blockers.map((blocker) =>
-    blocker.kind === "DOCUMENT"
-      ? `${file.ref.types.find((t) => t.id === blocker.documentTypeId)?.label ?? "Document"} ${blocker.state === "MISSING" ? "missing" : blocker.state === "STALE" ? "is stale" : "needs confirmation"}`
-      : blocker.kind === "FIELD"
-        ? `${blocker.label} needs review`
-        : "Unsorted document needs review",
+    blockerText(blocker, file.ref.types),
   );
   return (
     <>
@@ -122,7 +119,9 @@ export function TransitionControls({ file }: { file: ClaimFile }) {
         </p>
       )}
       <dialog
-        aria-label={action ? ACTION_LABELS[action] : "Confirm claim status change"}
+        aria-label={
+          action ? ACTION_LABELS[action] : "Confirm claim status change"
+        }
         ref={dialog}
         className="modal"
         onCancel={(event) => {
