@@ -1,7 +1,7 @@
 import { hash } from "bcryptjs";
 import { inArray, sql } from "drizzle-orm";
 import { put } from "@vercel/blob";
-import { readFile } from "node:fs/promises";
+import { syntheticPdf, seedReportDate } from "./pdf";
 import { db } from "../src/db";
 import {
   users,
@@ -36,7 +36,7 @@ export async function resetDemo({
   actorId?: string | null;
   source?: "cli" | "cron" | "head";
 } = {}) {
-  const files = new Map<string, Buffer>();
+  const files = new Map<string, Uint8Array>();
   const uploads = SEED_CLAIMS.flatMap((claim) =>
     claim.docs.map((key) => ({ claim, key })),
   );
@@ -44,7 +44,7 @@ export async function resetDemo({
     await Promise.all(
       uploads.slice(offset, offset + 6).map(async ({ claim, key }) => {
         const fileName = `${claim.code}-${key}.pdf`;
-        const bytes = await readFile(`${process.cwd()}/seed/files/${fileName}`);
+        const bytes = Buffer.from(await syntheticPdf(key, claim, now));
         files.set(fileName, bytes);
         await put(`seed/v1/${claim.code}/${key}.pdf`, bytes, {
           access: "private",
@@ -299,9 +299,7 @@ export async function resetDemo({
         const pathname = `seed/v1/${claim.code}/${key}.pdf`;
         const id = seedId(`document:${claim.code}:${key}`);
         const stale = claim.code === "CLM-3385" && key === "PLATELET_COUNT";
-        const documentDate = new Intl.DateTimeFormat("en-CA", {
-          timeZone: "Asia/Kolkata",
-        }).format(stale ? hoursAgo(70) : now);
+        const documentDate = seedReportDate(claim, key, now);
         const doc = {
           id,
           claimId,
@@ -341,7 +339,7 @@ export async function resetDemo({
               documentId: id,
               fieldKey,
               value,
-              sourceSnippet: `${fieldKey.replaceAll("_", " ")}: ${value}`,
+              sourceSnippet: value,
               confidence: 0.95,
               status: confirmed ? ("CONFIRMED" as const) : ("PENDING" as const),
               reviewedBy: confirmed ? desk : null,

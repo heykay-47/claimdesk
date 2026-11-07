@@ -7,12 +7,9 @@ import { forbidden } from "next/navigation";
 import { references } from "@/server/workspace";
 import { affectedClaimCount } from "@/server/mutations";
 import { resolveRules } from "@/domain/checklist";
-import {
-  PageTitle,
-  EmptyState,
-  ruleSource,
-} from "@/components/workspace/primitives";
+import { PageTitle, EmptyState } from "@/components/workspace/primitives";
 import { RuleEditor } from "@/components/workspace/rule-editor";
+import { FilterForm } from "@/components/workspace/filter-form";
 export default async function ChecklistSettingsPage({
   searchParams,
 }: {
@@ -53,7 +50,7 @@ export default async function ChecklistSettingsPage({
         title="Checklist rules"
         description="Define what the desk needs before a claim can move forward."
       />
-      <form action="/settings/checklists" className="filter-bar">
+      <FilterForm>
         <label className="field">
           Payer
           <select className="control" name="payer" defaultValue={payerId ?? ""}>
@@ -88,10 +85,7 @@ export default async function ChecklistSettingsPage({
             <option value="DISCHARGE">Discharge</option>
           </select>
         </label>
-        <button className="btn self-end" type="submit">
-          View rules
-        </button>
-      </form>
+      </FilterForm>
       <section className="panel">
         <div className="panel-heading">
           <div>
@@ -103,63 +97,77 @@ export default async function ChecklistSettingsPage({
               rule wins
             </p>
           </div>
-          <span className="pill neutral">Affects {affected} open claims</span>
+          <span className="pill neutral">
+            Affects {affected} open {affected === 1 ? "claim" : "claims"}
+          </span>
         </div>
-        <p className="px-5 py-4 text-xs muted border-b">
-          Priority is payer + procedure, then payer, then procedure, then
-          defaults. A waiver removes the document. Editing an inherited rule
-          creates an override for the scope selected above.
+        <p className="px-5 py-3 text-xs muted border-b">
+          Payer + procedure overrides payer, then procedure, then defaults.
+          Editing an inherited row creates an override here. Waived documents
+          are not required.
         </p>
         {resolved.length ? (
-          <div>
-            {resolved
-              .sort((a, b) =>
-                (
-                  ref.types.find((t) => t.id === a.documentTypeId)?.label ?? ""
-                ).localeCompare(
-                  ref.types.find((t) => t.id === b.documentTypeId)?.label ?? "",
-                ),
-              )
-              .map((rule) => (
-                <div
-                  className="gap-slot"
-                  key={`${rule.id}:${rule.requirement}:${rule.maxAgeHours}:${rule.note}`}
-                >
-                  <div className="slot-heading">
-                    <div>
-                      <h3>
-                        {
-                          ref.types.find(
-                            (type) => type.id === rule.documentTypeId,
-                          )?.label
-                        }
-                      </h3>
-                      <p className="slot-meta">
-                        {ruleSource(rule, payer, procedure)}
-                        {rule.maxAgeHours
-                          ? ` · Within ${rule.maxAgeHours}h`
-                          : ""}
-                      </p>
-                      {rule.note && <p className="slot-note">{rule.note}</p>}
-                    </div>
-                    <span
-                      className={`pill ${rule.requirement === "REQUIRED" ? "neutral" : rule.requirement === "WAIVED" ? "warning" : "neutral"}`}
-                    >
-                      {rule.requirement.toLowerCase()}
-                    </span>
-                  </div>
-                  <div className="mt-3">
+          <div className="table-wrap">
+            <table className="data-table rule-table">
+              <thead>
+                <tr>
+                  {[
+                    "Document",
+                    "Requirement",
+                    "Max age (h)",
+                    "Source tier",
+                    "Note",
+                    "Actions",
+                  ].map((label) => (
+                    <th scope="col" key={label}>
+                      {label}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {resolved
+                  .sort((a, b) =>
+                    (
+                      ref.types.find((t) => t.id === a.documentTypeId)?.label ??
+                      ""
+                    ).localeCompare(
+                      ref.types.find((t) => t.id === b.documentTypeId)?.label ??
+                        "",
+                    ),
+                  )
+                  .map((rule) => (
                     <RuleEditor
+                      key={`${rule.id}:${rule.requirement}:${rule.maxAgeHours}:${rule.note}`}
                       rule={rule}
                       types={ref.types}
                       payerId={payerId}
                       procedureId={procedureId}
                       stage={params.stage}
                       affected={affected}
+                      sourceLabel={
+                        rule.source === "PAYER_PROCEDURE"
+                          ? `${payer} · ${procedure}`
+                          : rule.source === "PAYER"
+                            ? payer
+                            : rule.source === "PROCEDURE"
+                              ? "Procedure"
+                              : "Default"
+                      }
                     />
-                  </div>
-                </div>
-              ))}
+                  ))}
+                {unused.length > 0 && (
+                  <RuleEditor
+                    key={`${payerId}:${procedureId}:${params.stage}:${unused.map((type) => type.id).join()}`}
+                    types={unused}
+                    payerId={payerId}
+                    procedureId={procedureId}
+                    stage={params.stage}
+                    affected={affected}
+                  />
+                )}
+              </tbody>
+            </table>
           </div>
         ) : (
           <EmptyState
@@ -167,16 +175,19 @@ export default async function ChecklistSettingsPage({
             description="Add a default or scoped requirement. Required pre-auth field reviews still apply."
           />
         )}
-        {unused.length > 0 && (
-          <div className="panel-body border-t">
-            <RuleEditor
-              key={`${payerId}:${procedureId}:${params.stage}`}
-              types={unused}
-              payerId={payerId}
-              procedureId={procedureId}
-              stage={params.stage}
-              affected={affected}
-            />
+        {!resolved.length && unused.length > 0 && (
+          <div className="table-wrap">
+            <table className="data-table rule-table">
+              <tbody>
+                <RuleEditor
+                  types={unused}
+                  payerId={payerId}
+                  procedureId={procedureId}
+                  stage={params.stage}
+                  affected={affected}
+                />
+              </tbody>
+            </table>
           </div>
         )}
       </section>

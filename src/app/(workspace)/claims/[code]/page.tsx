@@ -61,10 +61,13 @@ export default async function ClaimPage({
         Claims
       </Link>
       <header className="claim-heading">
-        <div className="heading-row">
+        <div className="claim-title-row">
           <div>
             <p className="claim-code mono">{claim.code}</p>
-            <h1 className="claim-patient">{claim.patientName}</h1>
+            <div className="claim-title-status">
+              <h1 className="claim-patient">{claim.patientName}</h1>
+              <StatusPill status={claim.status} />
+            </div>
             <p className="claim-meta">
               <span>
                 {file.payer.name} ·{" "}
@@ -74,7 +77,6 @@ export default async function ClaimPage({
               <span>{file.procedure.name}</span>
             </p>
           </div>
-          <StatusPill status={claim.status} />
         </div>
         <div className="claim-summary">
           <p
@@ -95,7 +97,11 @@ export default async function ClaimPage({
           )}
         </div>
       </header>
-      <div className="timeline" role="group" aria-label="Claim milestones, all times in IST">
+      <div
+        className="timeline"
+        role="group"
+        aria-label="Claim milestones, all times in IST"
+      >
         {milestones.map((milestone, index) => {
           const event = file.events.find(
             (e) => e.toStatus === milestone.status,
@@ -109,8 +115,19 @@ export default async function ClaimPage({
               <strong>{milestone.label}</strong>
               {event ? (
                 <time dateTime={event.at.toISOString()}>
-                  <span className="block whitespace-nowrap">{formatIST(event.at, { dateStyle: "medium", timeStyle: undefined })}</span>
-                  <span className="block whitespace-nowrap">{formatIST(event.at, { dateStyle: undefined, timeStyle: "short" })} IST</span>
+                  <span className="block whitespace-nowrap">
+                    {formatIST(event.at, {
+                      dateStyle: "medium",
+                      timeStyle: undefined,
+                    })}
+                  </span>
+                  <span className="block whitespace-nowrap">
+                    {formatIST(event.at, {
+                      dateStyle: undefined,
+                      timeStyle: "short",
+                    })}{" "}
+                    IST
+                  </span>
                 </time>
               ) : (
                 <span className="muted">Not yet</span>

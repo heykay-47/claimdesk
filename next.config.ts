@@ -2,10 +2,6 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   experimental: { authInterrupts: true },
-  outputFileTracingIncludes: {
-    "/api/cron/reset-demo": ["./seed/files/*.pdf"],
-    "/*": ["./seed/files/*.pdf"],
-  },
   async headers() {
     return [
       {

@@ -37,6 +37,9 @@ describe("Gemini model fallback", () => {
         "fallback",
       ]);
       expect(result.reason).toContain("Model: fallback");
+      expect(generate.mock.calls[0][0].config.httpOptions.apiVersion).toBe(
+        "v1beta",
+      );
       expect(
         generate.mock.calls[0][0].config.httpOptions.timeout,
       ).toBeLessThanOrEqual(22500);

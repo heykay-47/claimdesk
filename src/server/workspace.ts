@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, getTableColumns } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 import { db } from "@/db";
@@ -154,8 +154,9 @@ export async function claimFile(rawCode: string, stageOverride?: Stage) {
       .where(eq(documents.claimId, row.claim.id))
       .orderBy(desc(documents.uploadedAt)),
     db()
-      .select()
+      .select({ ...getTableColumns(extractedFields), reviewer: users.name })
       .from(extractedFields)
+      .leftJoin(users, eq(extractedFields.reviewedBy, users.id))
       .where(eq(extractedFields.claimId, row.claim.id))
       .orderBy(desc(extractedFields.reviewedAt)),
     db()

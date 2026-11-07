@@ -12,6 +12,7 @@ import {
 } from "@/components/workspace/primitives";
 import { Countdown } from "@/components/workspace/countdown";
 import { ClaimRow } from "@/components/workspace/claim-row";
+import { FilterForm } from "@/components/workspace/filter-form";
 const filterSchema = z.object({
   q: z.string().max(200).catch(""),
   status: z.enum(claimStatus.enumValues).optional().catch(undefined),
@@ -111,21 +112,28 @@ export default async function ClaimsPage({
         {kpis.map((kpi) => (
           <Link
             className={`kpi ${filters.view === kpi.view ? "selected" : ""}`}
+            aria-current={filters.view === kpi.view ? "page" : undefined}
             key={kpi.view}
             href={
               filters.view === kpi.view ? "/claims" : `/claims?view=${kpi.view}`
             }
           >
-            <span className="label">{kpi.label}</span>
+            <span className="label">
+              {kpi.label}
+              {filters.view === kpi.view && (
+                <span className="kpi-active">Active</span>
+              )}
+            </span>
             <span className={`value ${kpi.tone}`}>{kpi.value}</span>
           </Link>
         ))}
       </div>
-      <form className="filter-bar" action="/claims">
+      <FilterForm>
         <input
           className="control search"
           aria-label="Search claims"
           name="q"
+          type="search"
           placeholder="Search claim, patient or policy number"
           defaultValue={filters.q}
         />
@@ -176,15 +184,12 @@ export default async function ClaimsPage({
         {filters.view && (
           <input type="hidden" name="view" value={filters.view} />
         )}
-        <button className="btn" type="submit">
-          Apply
-        </button>
         {Object.values(filters).some(Boolean) && (
           <Link href="/claims" className="btn ghost">
             Clear
           </Link>
         )}
-      </form>
+      </FilterForm>
       <div className="panel table-wrap">
         {filtered.length ? (
           <table className="data-table">

@@ -24,6 +24,11 @@ export default async function QueryPage({
     };
   });
   const confirmed = file.files.filter((doc) => doc.status === "CONFIRMED");
+  const repeatsAsk = query.aiSummary?.asks.some(
+    (ask) =>
+      ask.trim().toLowerCase() ===
+      query.aiSummary?.summary.trim().toLowerCase(),
+  );
   return (
     <>
       <PageTitle
@@ -45,11 +50,24 @@ export default async function QueryPage({
             <div className="panel-body">
               {query.aiSummary ? (
                 <>
-                  <p className="text-sm leading-7">{query.aiSummary.summary}</p>
+                  {!repeatsAsk && (
+                    <p className="text-sm leading-7">
+                      {query.aiSummary.summary}
+                    </p>
+                  )}
                   <ul className="ask-list">
                     {query.aiSummary.asks.map((ask, index) => (
                       <li key={index}>
-                      <label className="flex items-start gap-2"><input className="mt-1 shrink-0" type="checkbox" defaultChecked={query.status === "ANSWERED"} disabled={query.status === "ANSWERED"} aria-label={`Reviewed ask: ${ask}`} /><span>{ask}</span></label>
+                        <label className="flex items-start gap-2">
+                          <input
+                            className="mt-1 shrink-0"
+                            type="checkbox"
+                            defaultChecked={query.status === "ANSWERED"}
+                            disabled={query.status === "ANSWERED"}
+                            aria-label={`Reviewed ask: ${ask}`}
+                          />
+                          <span>{ask}</span>
+                        </label>
                       </li>
                     ))}
                   </ul>
@@ -66,7 +84,10 @@ export default async function QueryPage({
                               {slot?.state === "SATISFIED" ? (
                                 <Check size={14} className="success-text" />
                               ) : (
-                                <CircleAlert size={14} className="danger-text" />
+                                <CircleAlert
+                                  size={14}
+                                  className="danger-text"
+                                />
                               )}
                               {type?.label ?? key}
                             </span>

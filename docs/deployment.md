@@ -48,11 +48,13 @@ Use `seed/files/CLM-3381-ULTRASOUND_REPORT.pdf` to demonstrate the missing-repor
 
 ## Prepare a deployment
 
+The AI adapter explicitly uses Gemini API `v1beta`. SDK 3 defaults to `v1`, which currently rejects the system instruction used by the extraction request.
+
 Set the same environment variable names in the deployment project. Use a new session secret for each deployment environment. Keep migrations as an explicit release step rather than running them in the application build.
 
 Set Node.js 24 for the deployment runtime. Private uploads go directly from the browser to Vercel Blob with a server-issued five-minute token restricted to one path, MIME type and file size, with overwriting disabled. The server verifies the completed private object and processes AI synchronously with a 60-second route budget. File bytes do not pass through the deployment’s request-body limit. Preview and download still go exclusively through the authenticated file route. The client never receives the read-write store token.
 
-Set `CRON_SECRET` to a random secret in Vercel. The scheduled `/api/cron/reset-demo` GET requires `Authorization: Bearer <CRON_SECRET>` and resets daily at 21:30 UTC, around 03:00 IST. A missing secret denies access. The desk head can also use the confirmed Reset demo data action on `/settings/audit`. Both entry points use the same transactional seed and append a `DEMO_RESET` audit row. Bundled fixture PDFs are included in Next.js file tracing. No reset writes to the function filesystem.
+Set `CRON_SECRET` to a random secret in Vercel. The scheduled `/api/cron/reset-demo` GET requires `Authorization: Bearer <CRON_SECRET>` and resets daily at 21:30 UTC, around 03:00 IST. A missing secret denies access. The desk head can also use the confirmed Reset demo data action on `/settings/audit`. Both entry points use the same transactional seed and append a `DEMO_RESET` audit row. The seed imports the same PDF renderer as `seed:files` and generates current-dated files in memory. No reset reads or writes the function filesystem. Committed PDFs remain available as upload examples and smoke inputs.
 
 After a browser test, remove only independently created test claims before reseeding. The seed removes changed or added children of sample claims and restores all checklist rules. Audit rows are preserved.
 

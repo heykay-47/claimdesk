@@ -6,6 +6,16 @@ import { PREAUTH_FIELDS } from "@/domain/preauth-fields";
 import type { ClaimFile } from "@/server/workspace";
 import { runAction } from "@/app/actions";
 import { FileContent } from "./document-preview";
+import { formatIST } from "@/domain/format";
+function hasConflict(fields: ClaimFile["fields"]) {
+  return (
+    new Set(
+      fields
+        .filter((field) => field.status !== "REJECTED")
+        .map((field) => field.value.trim().toLowerCase()),
+    ).size > 1
+  );
+}
 function FieldReview({
   definition,
   file,
@@ -28,13 +38,9 @@ function FieldReview({
   const [documentId, setDocumentId] = useState(file.files[0]?.id ?? "");
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
+  const [editing, setEditing] = useState(false);
   const router = useRouter();
-  const conflict =
-    new Set(
-      suggestions
-        .filter((s) => s.status !== "REJECTED")
-        .map((s) => s.value.trim().toLowerCase()),
-    ).size > 1;
+  const conflict = hasConflict(suggestions);
   function review(action: "CONFIRM" | "REJECT") {
     setError("");
     startTransition(async () => {
@@ -53,12 +59,47 @@ function FieldReview({
       toast.success(
         action === "CONFIRM" ? "Field confirmed" : "Suggestion rejected",
       );
+      setEditing(false);
       router.refresh();
     });
   }
   const sourceDocument = file.files.find(
     (doc) => doc.id === source?.documentId,
   );
+  if (source?.status === "CONFIRMED" && !editing && !conflict)
+    return (
+      <section className="field-review confirmed-field">
+        <div className="flex justify-between items-start gap-3">
+          <div>
+            <h3>{definition.label}</h3>
+            <p className="text-sm mt-2 whitespace-pre-wrap">{source.value}</p>
+          </div>
+          <button
+            type="button"
+            className="text-link text-xs"
+            onClick={() => {
+              setEditing(true);
+              preview(source.documentId);
+            }}
+          >
+            Edit
+          </button>
+        </div>
+        <p className="muted text-xs mt-2">
+          Confirmed by {source.reviewer ?? "the insurance desk"}
+          {source.reviewedAt && ` · ${formatIST(source.reviewedAt)} IST`}
+        </p>
+        {sourceDocument && (
+          <button
+            type="button"
+            className="text-link text-xs mt-2 break-all text-left"
+            onClick={() => preview(sourceDocument.id)}
+          >
+            {sourceDocument.fileName}
+          </button>
+        )}
+      </section>
+    );
   return (
     <section className="field-review">
       <div className="flex justify-between gap-3 items-start">
@@ -68,7 +109,9 @@ function FieldReview({
         >
           {definition.label}
           {definition.required && (
-            <span className="muted text-xs ml-2">Required</span>
+            <span aria-hidden="true" className="muted text-xs ml-2">
+              Required
+            </span>
           )}
         </label>
         <span
@@ -215,6 +258,18 @@ function FieldReview({
             Reject
           </button>
         )}
+        {editing && (
+          <button
+            type="button"
+            className="btn small ghost"
+            onClick={() => {
+              setEditing(false);
+              setValue(source?.value ?? "");
+            }}
+          >
+            Cancel edit
+          </button>
+        )}
       </div>
     </section>
   );
@@ -226,20 +281,58 @@ export function PreauthReview({ file }: { file: ClaimFile }) {
       "",
   );
   const source = file.files.find((doc) => doc.id === previewId);
+  const confirmed = PREAUTH_FIELDS.filter(
+    (definition) =>
+      !hasConflict(
+        file.fields.filter((field) => field.fieldKey === definition.key),
+      ) &&
+      file.fields.some(
+        (field) =>
+          field.fieldKey === definition.key && field.status === "CONFIRMED",
+      ),
+  );
+  const unconfirmed = PREAUTH_FIELDS.filter(
+    (definition) => !confirmed.includes(definition),
+  );
+  const ordered = [...unconfirmed].sort((a, b) => {
+    const conflict = (key: string) =>
+      hasConflict(file.fields.filter((field) => field.fieldKey === key));
+    return Number(conflict(b.key)) - Number(conflict(a.key));
+  });
+  function fieldRow(definition: (typeof PREAUTH_FIELDS)[number]) {
+    return (
+      <FieldReview
+        key={`${definition.key}-${file.fields
+          .filter((field) => field.fieldKey === definition.key)
+          .map((field) => `${field.id}:${field.status}:${field.reviewedAt}`)
+          .join()}`}
+        definition={definition}
+        file={file}
+        preview={setPreviewId}
+      />
+    );
+  }
   return (
     <div className="field-review-grid">
       <div className="panel">
-        {PREAUTH_FIELDS.map((definition) => (
-          <FieldReview
-            key={`${definition.key}-${file.fields
-              .filter((f) => f.fieldKey === definition.key)
-              .map((f) => `${f.id}:${f.status}`)
-              .join()}`}
-            definition={definition}
-            file={file}
-            preview={setPreviewId}
-          />
-        ))}
+        {ordered.length ? (
+          ordered.map(fieldRow)
+        ) : (
+          <div className="panel-body">
+            <h2 className="success-text">All fields confirmed</h2>
+            <p className="muted text-xs mt-2">
+              Open the confirmed group to inspect a source or edit a value.
+            </p>
+          </div>
+        )}
+        {confirmed.length > 0 && (
+          <details className="confirmed-fields">
+            <summary className="panel-body text-sm font-medium">
+              {confirmed.length} confirmed
+            </summary>
+            {confirmed.map(fieldRow)}
+          </details>
+        )}
       </div>
       <aside className="document-preview panel">
         <div className="panel-heading">
