@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 420" font-family="Geist, Inter, Helvetica, Arial, sans-serif" font-size="12">
+  <style>
+    .box { fill: #ffffff; stroke: #d6d3d1; stroke-width: 1; }
+    .core { fill: #f0fdfa; stroke: #0f766e; }
+    .t { font-weight: 600; fill: #1c1917; font-size: 13px; }
+    .f { fill: #57534e; font-size: 11px; }
+    .l { stroke: #a8a29e; stroke-width: 1.2; fill: none; }
+    .n { fill: #78716c; font-size: 10px; }
+  </style>
+  <rect class="box" x="20" y="20" width="170" height="74" rx="8"/>
+  <text class="t" x="34" y="42">payers</text>
+  <text class="f" x="34" y="60">name, kind (INSURER | TPA)</text>
+  <text class="f" x="34" y="76">query_reply_hours</text>
+
+  <rect class="box" x="20" y="130" width="170" height="58" rx="8"/>
+  <text class="t" x="34" y="152">procedures</text>
+  <text class="f" x="34" y="170">name, specialty</text>
+
+  <rect class="box" x="20" y="226" width="170" height="74" rx="8"/>
+  <text class="t" x="34" y="248">document_types</text>
+  <text class="f" x="34" y="266">key, label</text>
+  <text class="f" x="34" y="282">ai_hint (AI catalogue)</text>
+
+  <rect class="box core" x="260" y="226" width="220" height="108" rx="8"/>
+  <text class="t" x="274" y="248">checklist_rules</text>
+  <text class="f" x="274" y="266">payer_id? · procedure_id?  (null = any)</text>
+  <text class="f" x="274" y="282">stage · document_type_id</text>
+  <text class="f" x="274" y="298">requirement · max_age_hours · note</text>
+  <text class="f" x="274" y="318">UNIQUE NULLS NOT DISTINCT (scope)</text>
+
+  <rect class="box core" x="260" y="20" width="220" height="124" rx="8"/>
+  <text class="t" x="274" y="42">claims</text>
+  <text class="f" x="274" y="60">code (CLM-3381) · status</text>
+  <text class="f" x="274" y="76">patient_name, age, gender, uhid</text>
+  <text class="f" x="274" y="92">policy_number · payer_id · procedure_id</text>
+  <text class="f" x="274" y="108">admitted_at · estimate / approved (paise)</text>
+  <text class="f" x="274" y="124">settled · deduction amount + reason</text>
+
+  <rect class="box" x="560" y="20" width="300" height="58" rx="8"/>
+  <text class="t" x="574" y="42">claim_events  (timeline)</text>
+  <text class="f" x="574" y="60">from_status → to_status · actor · note · at</text>
+
+  <rect class="box" x="560" y="98" width="300" height="90" rx="8"/>
+  <text class="t" x="574" y="120">documents</text>
+  <text class="f" x="574" y="138">blob_pathname (private) · mime · size</text>
+  <text class="f" x="574" y="154">document_type_id · ai type · confidence · reason</text>
+  <text class="f" x="574" y="170">status (PROCESSING | NEEDS_REVIEW | CONFIRMED | FAILED)</text>
+
+  <rect class="box" x="560" y="208" width="300" height="74" rx="8"/>
+  <text class="t" x="574" y="230">extracted_fields</text>
+  <text class="f" x="574" y="248">field_key · value · source_snippet · confidence</text>
+  <text class="f" x="574" y="264">status (PENDING | CONFIRMED | REJECTED)</text>
+
+  <rect class="box" x="560" y="302" width="300" height="74" rx="8"/>
+  <text class="t" x="574" y="324">queries</text>
+  <text class="f" x="574" y="342">from · subject · body (original) · ai_summary</text>
+  <text class="f" x="574" y="358">received_at · due_at · status · reply</text>
+
+  <rect class="box" x="260" y="354" width="220" height="50" rx="8"/>
+  <text class="t" x="274" y="376">users · audit_logs</text>
+  <text class="f" x="274" y="392">role · append-only actor trail</text>
+
+  <path class="l" d="M190 57 H260"/>
+  <path class="l" d="M190 159 H225 V110 H260"/>
+  <path class="l" d="M190 57 H225 V260 H260"/>
+  <path class="l" d="M190 159 H215 V276 H260"/>
+  <path class="l" d="M190 263 H260"/>
+  <path class="l" d="M480 49 H560"/>
+  <path class="l" d="M480 82 H520 V143 H560"/>
+  <path class="l" d="M480 100 H530 V245 H560"/>
+  <path class="l" d="M480 120 H540 V339 H560"/>
+  <path class="l" d="M710 188 V208"/>
+  <text class="n" x="196" y="51">1 : n</text>
+  <text class="n" x="486" y="43">1 : n</text>
+  <text class="n" x="716" y="201">1 : n</text>
+</svg>

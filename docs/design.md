@@ -20,13 +20,13 @@ The HS256 session contains only a user ID, issuance time, expiry, issuer, and au
 
 The cookie is HTTP-only, same-site lax, and secure in production. Proxy verifies the signature for page navigation. Server functions and file routes enforce their own authorization.
 
-The login limit allows five attempts per IP and email pair, plus thirty attempts per IP, in fifteen minutes. Counters are process-local and reset on restart. A production deployment needs a shared rate-limit store and trusted proxy configuration.
+The login limit counts only failed attempts: five per IP and email pair, plus thirty per IP, in fifteen minutes. A successful sign-in clears that pair's counter. Successful sign-ins never count, because reviewers share the demo accounts and often an office IP. Counters are process-local and reset on restart. A production deployment needs a shared rate-limit store and trusted proxy configuration.
 
 `audit()` only inserts rows. Application code never edits or deletes an audit row. Production database credentials should have insert-only permission on `audit_logs`. Database-owner credentials remain necessary for local migrations and isolated integration tests, not for a hardened application role.
 
 ## AI and private files
 
-The Gemini adapter uses an explicit response schema and validates JSON with Zod. Files are limited to 10 MB. Phase 2 supersedes the original single-model 25-second timeout with an overall 45-second budget shared between the primary model and configured fallbacks. Only transient 429, 503, 504, unavailable and timeout failures permit fallback. Invalid request or output validation errors stop immediately. The document’s AI reason records the answering model.
+The Gemini adapter uses an explicit response schema and validates JSON with Zod. Files are limited to 10 MB. Phase 2 supersedes the original single-model 25-second timeout with an overall 45-second budget shared between the primary model and configured fallbacks. Only transient 429, 503, 504, unavailable and timeout failures permit fallback. Invalid request or output validation errors stop immediately. The document’s AI reason records the answering model. A model that fails transiently is skipped for five minutes on that instance, so an exhausted quota costs one fast 429 instead of a wait on every upload.
 
 `classifyForReview` always returns `NEEDS_REVIEW` on success. Proposed fields remain `PENDING`. Low confidence and unknown catalogue keys add an `AI unsure` marker. Failures return `FAILED` with a safe error message, no document type, and no proposed fields. Query failure returns no summary and an error so the caller can keep the original email visible.
 

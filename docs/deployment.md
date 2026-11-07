@@ -2,6 +2,43 @@
 
 ClaimDesk includes the claims worklist and claim file, checklist review, private uploads, pre-auth field review, query inbox, head-only checklist management, and an audit log. Nothing is sent to a payer automatically.
 
+Live demo: <https://isocode-claims.vercel.app>. Repository: <https://github.com/heykay-47/claimdesk>.
+
+## Deployment architecture
+
+| Part | Service | Region |
+| --- | --- | --- |
+| Next.js app (pages, server actions, route handlers) | Vercel, project `isocode-claims`, `vercel.json` pins functions to `bom1` | Mumbai |
+| Postgres | Neon (pooled URL for the app, direct URL for migrations) | Singapore (`aws-ap-southeast-1`) |
+| Document files | Vercel Blob, private store, browser uploads with a scoped 5-minute token | Mumbai (`bom1`) |
+| AI | Google Gemini API, called only from the server | Google-managed |
+| Daily demo reset | Vercel Cron, `30 21 * * *` UTC (03:00 IST) → `GET /api/cron/reset-demo` with a bearer secret | Mumbai |
+
+Pushes to `main` on GitHub deploy to production. Migrations are a separate release step (`pnpm db:migrate`) and never run in the build.
+
+## Environment variables
+
+Secret values are not in the repository. Set each variable for Production and Preview in Vercel, and in `.env.local` for local work.
+
+| Name | Required | Purpose |
+| --- | --- | --- |
+| `DATABASE_URL` | Yes | Pooled Postgres URL used by the app |
+| `DATABASE_URL_UNPOOLED` | Yes, for migrations, seed and integration tests | Direct Postgres URL |
+| `BLOB_READ_WRITE_TOKEN` | Yes | Private Vercel Blob store token. Vercel adds it when the store is connected to the project |
+| `SESSION_SECRET` | Yes | At least 32 random characters. Signs session cookies. Use a different value per environment |
+| `GEMINI_API_KEY` | Yes | Google AI Studio key, used only on the server |
+| `GEMINI_MODEL` | No | Primary model. The demo uses `gemini-3.5-flash` |
+| `GEMINI_FALLBACK_MODELS` | No | Comma-separated fallbacks for 429, 503, 504 or timeouts. The demo uses `gemini-2.5-flash,gemini-3.8-flash` |
+| `CRON_SECRET` | Yes, on Vercel | Bearer secret for `/api/cron/reset-demo`. If it is missing, the route denies every request |
+| `AI_PROVIDER` | Never in deployment | `fake` is set only for the local Playwright server |
+
+## Demo credentials
+
+| Role | Email | Password |
+| --- | --- | --- |
+| Desk executive (`EXECUTIVE`) | `desk@claimdesk.demo` | `ClaimDesk@2026` |
+| Desk head (`HEAD`) | `head@claimdesk.demo` | `ClaimDesk@2026` |
+
 ## Configure local services
 
 Use Node.js 24 and the pinned pnpm version in `package.json`.
