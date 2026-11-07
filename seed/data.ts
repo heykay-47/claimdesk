@@ -287,7 +287,9 @@ export function seedFields(claim: SeedClaim, admittedAt: Date) {
     provisional_diagnosis: PROCEDURES[claim.procedure].diagnosis,
     icd10_code: PROCEDURES[claim.procedure].icd10,
     proposed_procedure: PROCEDURES[claim.procedure].name,
-    date_of_admission: admittedAt.toISOString().slice(0, 10),
+    date_of_admission: new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Kolkata",
+    }).format(admittedAt),
     treating_doctor: "Dr. Kavita Bendre",
     estimated_cost: String(claim.amount),
     clinical_history_summary:

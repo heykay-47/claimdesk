@@ -22,7 +22,7 @@ import {
   summariseForReview,
   type AiClient,
 } from "@/ai/client";
-import { GeminiAiClient } from "@/ai/gemini";
+import { createAiClient } from "@/ai/provider";
 import { requireRole, requireUser } from "./auth";
 import { checklistInTransaction, type Transaction } from "./workspace";
 import { readDocument } from "./storage";
@@ -254,6 +254,10 @@ export async function reviewDocument(input: unknown) {
       .select()
       .from(documents)
       .where(eq(documents.id, reference.id));
+    if (!file)
+      throw new InputError(
+        "The demo was reset. Reload the claim before reviewing this document.",
+      );
     if (
       data.action === "CONFIRM" &&
       (!file.documentTypeId ||
@@ -298,7 +302,7 @@ export async function reviewDocument(input: unknown) {
 export async function processDocument(
   documentId: string,
   bytes: Uint8Array,
-  client: AiClient = new GeminiAiClient(),
+  client: AiClient = createAiClient(),
 ) {
   const user = await requireUser();
   id.parse(documentId);
@@ -320,6 +324,10 @@ export async function processDocument(
       .select()
       .from(documents)
       .where(eq(documents.id, file.id));
+    if (!current)
+      throw new InputError(
+        "The demo was reset during processing. Reload the claim and upload again.",
+      );
     if (
       current.classifiedBy === "USER" ||
       !["PROCESSING", "FAILED"].includes(current.status)
@@ -458,7 +466,7 @@ export async function reviewField(input: unknown) {
 }
 export async function logQuery(
   input: unknown,
-  client: AiClient = new GeminiAiClient(),
+  client: AiClient = createAiClient(),
 ) {
   const user = await requireUser();
   const data = z
@@ -535,6 +543,10 @@ export async function answerQuery(input: unknown) {
       .select()
       .from(queries)
       .where(eq(queries.id, row.id));
+    if (!query)
+      throw new InputError(
+        "The demo was reset. Reload the inbox before recording this reply.",
+      );
     if (query.status !== "OPEN")
       throw new InputError("This reply has already been recorded.");
     await tx
@@ -563,7 +575,7 @@ export async function answerQuery(input: unknown) {
 }
 export async function retryQuerySummary(
   input: unknown,
-  client: AiClient = new GeminiAiClient(),
+  client: AiClient = createAiClient(),
 ) {
   const user = await requireUser();
   const { queryId } = z.object({ queryId: id }).parse(input);

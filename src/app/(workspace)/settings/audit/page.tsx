@@ -120,7 +120,12 @@ export default async function AuditPage({
                   <td className="whitespace-nowrap mono text-xs">
                     {formatIST(log.at)}
                   </td>
-                  <td>{actor ?? "Unauthenticated"}</td>
+                  <td>
+                    {actor ??
+                      (log.entityType === "system"
+                        ? "System"
+                        : "Unauthenticated")}
+                  </td>
                   <td className="text-xs">
                     {log.action.replaceAll("_", " ").toLowerCase()}
                   </td>

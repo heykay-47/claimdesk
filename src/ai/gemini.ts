@@ -106,7 +106,9 @@ export class GeminiAiClient implements AiClient {
           config: {
             responseMimeType: "application/json",
             responseSchema,
-            thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
+            thinkingConfig: model.includes("gemini-2.5-")
+              ? { thinkingBudget: 1024 }
+              : { thinkingLevel: ThinkingLevel.LOW },
             httpOptions: {
               apiVersion: "v1beta",
               timeout,

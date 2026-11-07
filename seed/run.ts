@@ -1,5 +1,5 @@
 import { hash } from "bcryptjs";
-import { inArray, sql } from "drizzle-orm";
+import { asc, inArray, sql } from "drizzle-orm";
 import { put } from "@vercel/blob";
 import { syntheticPdf, seedReportDate } from "./pdf";
 import { db } from "../src/db";
@@ -124,6 +124,12 @@ export async function resetDemo({
     const fixtureIds = SEED_CLAIMS.map((claim) =>
       seedId(`claim:${claim.code}`),
     );
+    await database
+      .select({ id: claims.id })
+      .from(claims)
+      .where(inArray(claims.id, fixtureIds))
+      .orderBy(asc(claims.id))
+      .for("update");
     await database
       .delete(extractedFields)
       .where(inArray(extractedFields.claimId, fixtureIds));

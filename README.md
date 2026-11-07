@@ -1,36 +1,36 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ClaimDesk
 
-## Getting Started
+A hospital insurance desk workspace for cashless claims, document readiness, payer queries and settlement tracking. Built for the Isocode take-home.
 
-First, run the development server:
+[Open the demo](https://isocode-claims.vercel.app) · [Run and verify locally](docs/deployment.md) · [Design and production constraints](docs/design.md)
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+Implementation and verification details are in the [Phase 3 handoff](docs/phase-3-report.md).
+
+## Try the core workflow
+
+1. Sign in with the **Desk executive** demo account on the login page.
+2. Open **CLM-3381** from the claims worklist. Its ultrasound report is missing and a payer reply is overdue.
+3. Upload `seed/files/CLM-3381-ULTRASOUND_REPORT.pdf`. AI suggests a slot, but readiness changes only after you confirm it.
+4. Record replies to both open queries. The claim returns to **Pre-auth sent** only after the final query is answered.
+5. Download the PDF packet. Its cover reports the current checklist and any remaining blockers. Nothing is sent to a payer.
+
+Open **CLM-3385** to inspect the stale platelet report. The **Desk head** account can change scoped checklist rules and inspect the audit trail. Both roles can view timing and deduction insights.
+
+## Run locally
+
+Use Node.js 24 and the pinned pnpm version. Configure the service credentials described in [deployment.md](docs/deployment.md), then run:
+
+```sh
+pnpm install --frozen-lockfile
+pnpm db:migrate
+pnpm db:seed
+pnpm dev --port 3001
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Verification commands are `pnpm lint`, `pnpm exec tsc --noEmit`, `pnpm test`, `pnpm test:e2e` and `pnpm build`. The end-to-end suite builds the production app and restores demo data afterward. Real Gemini extraction has a separate `pnpm ai:smoke` check.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Boundaries
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+All patients and documents are fictional. This demo is not approved for real patient records. The database is in Singapore, private Blob storage and application functions are in Mumbai, and AI processing can be cross-border. See the [residency and security design](docs/design.md) before production use.
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Checklist precedence and lifecycle gates live in pure domain modules. Server mutations validate inputs, enforce current database roles and write audit rows. AI outputs remain suggestions until reviewed. Payer communication is always manual.

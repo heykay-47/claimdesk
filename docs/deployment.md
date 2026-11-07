@@ -39,12 +39,19 @@ Run these commands:
 pnpm lint
 pnpm exec tsc --noEmit
 pnpm test
+pnpm test:e2e
 pnpm build
 pnpm storage:smoke
 pnpm ai:smoke
 ```
 
 Integration tests require the seeded database. They create a unique schema inside a transaction, copy the demo fixtures into it, and roll back the entire transaction. They never update or delete the demo records. AI tests use a fake client.
+
+`test:e2e` builds and starts the production artifact on port 3010, then runs five serial Chromium journeys against the configured real database and private Blob store. Run `pnpm exec playwright install chromium` once. Set `E2E_PORT` to change the port. The test server alone receives `AI_PROVIDER=fake`; otherwise the app uses Gemini. Do not set `AI_PROVIDER=fake` in a deployed environment. This deterministic fake recognises the end-to-end ultrasound fixture and still requires human confirmation.
+
+Global setup restores sample data before the journeys. Global teardown removes only claims and private uploads identified by that run's random ID, then reseeds. Audit rows remain. The suite covers uploads and confirmation, both query replies, executive HTTP 403 and server-action rejection, head waivers and requirements, blocked new claims, PDF downloads and executive insights access.
+
+To refresh screenshots after a clean seed, run a production server on port 3011 and run `pnpm screenshots`. `SCREENSHOT_BASE_URL` can select a different local server. The capture script signs in through the UI, saves eleven desktop/mobile screenshots and fails on horizontal page overflow.
 
 `storage:smoke` uploads a synthetic PDF and compares SHA-256 hashes after a private read. `ai:smoke` prints validated classifications for a synthetic PDF and a handwritten-style PNG, followed by an explicit N/2 result. Either file failing means exit code 1. Printing an error for one file and a successful result for another is not a passing smoke test.
 
@@ -55,6 +62,7 @@ Use `seed/files/CLM-3381-ULTRASOUND_REPORT.pdf` to demonstrate the missing-repor
 ## Prepare a deployment
 
 The AI adapter explicitly uses Gemini API `v1beta`. SDK 3 defaults to `v1`, which currently rejects the system instruction used by the extraction request.
+Gemini 3 requests use a low thinking level. A configured Gemini 2.5 fallback receives a 1,024-token thinking budget instead, because that model family rejects thinking-level options.
 
 Set the same environment variable names in the deployment project. Use a new session secret for each deployment environment. Keep migrations as an explicit release step rather than running them in the application build.
 

@@ -58,6 +58,20 @@ describe("Gemini model fallback", () => {
       ),
     ).resolves.toMatchObject({ reason: "Evidence [Model: b]" });
   });
+  it("uses a token budget for a Gemini 2.5 fallback instead of an unsupported thinking level", async () => {
+    const generate = vi
+      .fn()
+      .mockRejectedValueOnce(
+        Object.assign(new Error("Unavailable"), { status: 503 }),
+      )
+      .mockResolvedValueOnce(response(classification));
+    await new GeminiAiClient("gemini-3.5-flash", 25000, generate, [
+      "gemini-2.5-flash",
+    ]).classifyAndExtract(new Uint8Array([1]), "application/pdf", []);
+    expect(generate.mock.calls[1][0].config.thinkingConfig).toEqual({
+      thinkingBudget: 1024,
+    });
+  });
   it.each([400, 401])("does not retry non-transient %s", async (status) => {
     const generate = vi
       .fn()

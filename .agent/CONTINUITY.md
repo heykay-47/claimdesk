@@ -1,6 +1,7 @@
 # ClaimDesk foundation
 
 ## [PLANS]
+- 2026-11-07 [USER] Phase 3 is implemented and verified locally. Parent review and push remain explicitly outside this subagent's authorization. See docs/phase-3-report.md.
 - 2026-11-07 [USER] Phase 2 supersedes the earlier Phase 1-only scope. Core product screens and audited DB workflows are implemented. Deployment remains the parent session’s next phase.
 - [USER] Phase 1 only. Product screens come in Phase 2. Minimal login and authenticated home are implemented.
 - [TOOL] Foundation implemented and verified except real Gemini success. Provider 503/504 blocks that acceptance check. See docs/phase-1-report.md for the handoff.
@@ -12,6 +13,8 @@
 - [CODE] Integration tests use a new schema inside a transaction, copy seeded fixtures, and roll back everything.
 
 ## [PROGRESS]
+- 2026-11-07 [TOOL] Final checks pass: lint, TypeScript, 91 tests, five serial production-build Playwright journeys, build and real AI smoke 2/2 through configured Gemini 2.5 fallback. All eleven screenshots recaptured and inspected at 1440 px desktop / 390 px phone, with no horizontal page overflow. Final DB reset restores 10 claims, 66 docs, 110 fields, 3 queries, 37 events and 19 rules; no E2E claims remain.
+- [TOOL] Head-confirmed reset and cron authorization verified on the production artifact. Early Proxy role read fixes streamed forbidden pages returning HTTP 200; actual executive settings HTTP response is now 403 and actions independently reject the role. Test cleanup removes its own Blob upload and created claims, then reseeds.
 - 2026-11-07 [TOOL] Phase 3 units 1-3 committed as 71839a4, e966c79 and fcd5975. Fresh transactional reset, secured cron and head action, dense rules, immediate filters, confirmed-field grouping, regenerated in-memory PDFs and audited packet export are verified. No push.
 - 2026-11-07 [TOOL] Additive settlement migration 0001 applied after isolated-schema tests. Insights and deduction capture pass all 83 tests, TypeScript, lint and build. Real browser settlement updated the dashboard; reseed restores it before final QA.
 - [TOOL] Real regenerated PDF and handwritten-input smoke passed 2/2 after pinning Gemini request API v1beta. SDK 3 defaults to v1, which rejected the system instruction with 400.
