@@ -14,7 +14,7 @@ Use Node.js 24 and the pinned pnpm version in `package.json`.
 6. Run `pnpm db:seed`.
 7. Run `pnpm dev --port 3001`.
 
-The seed updates only its deterministic demo records. Rerunning it resets those records and refreshes query deadlines relative to the current time. Blob paths remain stable. Do not use this seed against real patient data.
+The seed restores its deterministic sample claims, documents, fields, queries and timeline, plus all checklist rules. Admission times, report dates and query deadlines are relative to the seed run. Independently created claims and append-only audit rows are kept. Blob paths remain stable. Do not use this seed against real patient data.
 
 ## Sign in
 
@@ -52,6 +52,8 @@ Set the same environment variable names in the deployment project. Use a new ses
 
 Set Node.js 24 for the deployment runtime. Private uploads go directly from the browser to Vercel Blob with a server-issued five-minute token restricted to one path, MIME type and file size, with overwriting disabled. The server verifies the completed private object and processes AI synchronously with a 60-second route budget. File bytes do not pass through the deployment’s request-body limit. Preview and download still go exclusively through the authenticated file route. The client never receives the read-write store token.
 
-The seed resets its own deterministic rows, not arbitrary user-created claims, uploads, events or overrides. After a demo or browser test, remove only the records created by that test before reseeding. Preserve audit rows.
+Set `CRON_SECRET` to a random secret in Vercel. The scheduled `/api/cron/reset-demo` GET requires `Authorization: Bearer <CRON_SECRET>` and resets daily at 21:30 UTC, around 03:00 IST. A missing secret denies access. The desk head can also use the confirmed Reset demo data action on `/settings/audit`. Both entry points use the same transactional seed and append a `DEMO_RESET` audit row. Bundled fixture PDFs are included in Next.js file tracing. No reset writes to the function filesystem.
+
+After a browser test, remove only independently created test claims before reseeding. The seed removes changed or added children of sample claims and restores all checklist rules. Audit rows are preserved.
 
 The current provisioned database is in Singapore. This demo is **not approved for real patient records**. See [the security and residency design](design.md) before production use.

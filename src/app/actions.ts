@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import * as mutations from "@/server/mutations";
 import { actionError } from "@/server/action-error";
+import { resetDemoAsHead } from "@/server/demo-reset";
 const handlers = {
   createClaim: mutations.createClaim,
   transitionClaim: mutations.transitionClaim,
@@ -14,6 +15,7 @@ const handlers = {
   retryQuerySummary: mutations.retryQuerySummary,
   saveRule: mutations.saveRule,
   deleteRule: mutations.deleteRule,
+  resetDemo: resetDemoAsHead,
 };
 export type ActionName = keyof typeof handlers;
 export type ActionResult =

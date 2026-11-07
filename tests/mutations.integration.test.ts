@@ -68,6 +68,7 @@ import {
 import { getClaimChecklist } from "../src/server/claim-checklist";
 import { AuthorizationError, AuthenticationError } from "../src/server/auth";
 import { runAction } from "../src/app/actions";
+import { resetDemoAsHead } from "../src/server/demo-reset";
 const client = new Client({
   connectionString: process.env.DATABASE_URL_UNPOOLED,
 });
@@ -208,7 +209,12 @@ describe("audited workspace mutations against real Postgres", () => {
       documentTypeId: seedId("type:ULTRASOUND_REPORT"),
     });
     expect((await getClaimChecklist(claimId)).ready).toBe(false);
-    expect(await runAction("reviewDocument", { documentId: result.id, action: "CONFIRM" })).toEqual({ ok: true, data: undefined });
+    expect(
+      await runAction("reviewDocument", {
+        documentId: result.id,
+        action: "CONFIRM",
+      }),
+    ).toEqual({ ok: true, data: undefined });
     expect((await getClaimChecklist(claimId)).ready).toBe(true);
     const audits = await database
       .select()
@@ -452,8 +458,21 @@ describe("audited workspace mutations against real Postgres", () => {
     ).rejects.toBeInstanceOf(AuthenticationError);
   });
   it("server actions return safe authorization and validation errors", async () => {
-    expect(await runAction("saveRule", {})).toEqual({ ok: false, error: "This action requires the desk head role" });
-    const result = await runAction("reviewDocument", { documentId: "not-a-uuid", action: "CONFIRM" });
+    await expect(
+      resetDemoAsHead({ confirmedReset: true }),
+    ).rejects.toBeInstanceOf(AuthorizationError);
+    expect(await runAction("resetDemo", { confirmedReset: true })).toEqual({
+      ok: false,
+      error: "This action requires the desk head role",
+    });
+    expect(await runAction("saveRule", {})).toEqual({
+      ok: false,
+      error: "This action requires the desk head role",
+    });
+    const result = await runAction("reviewDocument", {
+      documentId: "not-a-uuid",
+      action: "CONFIRM",
+    });
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error).toContain("documentId");
   });

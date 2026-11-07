@@ -217,11 +217,10 @@ export const SEED_CLAIMS: SeedClaim[] = [
     docs: [...baseDocs, "CBC_REPORT"],
   },
 ];
-export function seedAdmission(claim: SeedClaim) {
+export function seedAdmission(claim: SeedClaim, now = new Date()) {
   const index = SEED_CLAIMS.findIndex((entry) => entry.code === claim.code);
   return new Date(
-    new Date("2026-11-07T08:00:00Z").getTime() -
-      (index === 3 ? 1 : 50 + index * 4) * 3_600_000,
+    now.getTime() - (index === 3 ? 1 : 50 + index * 4) * 3_600_000,
   );
 }
 export function seedFields(claim: SeedClaim, admittedAt: Date) {

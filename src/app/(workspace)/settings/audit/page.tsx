@@ -7,6 +7,7 @@ import { requireUser } from "@/server/auth";
 import { forbidden } from "next/navigation";
 import { formatIST } from "@/domain/format";
 import { PageTitle, EmptyState } from "@/components/workspace/primitives";
+import { ActionButton } from "@/components/workspace/action-form";
 export default async function AuditPage({
   searchParams,
 }: {
@@ -53,6 +54,20 @@ export default async function AuditPage({
         title="Audit log"
         description="An append-only record of access, decisions and changes."
       />
+      <div className="panel p-4 mb-5 flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm muted">
+          Fictional demo data resets daily around 03:00 IST. Audit history is
+          kept.
+        </p>
+        <ActionButton
+          action="resetDemo"
+          values={{ confirmedReset: true }}
+          success="Demo restored with fresh deadlines"
+          confirm="Restore the sample claims and all checklist rules? Changes to sample documents, reviews and queries will be removed. Independently created claims and audit history are kept."
+        >
+          Reset demo data
+        </ActionButton>
+      </div>
       <form action="/settings/audit" className="filter-bar">
         <select
           className="control"
