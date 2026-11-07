@@ -12,8 +12,8 @@
     "db:migrate": "drizzle-kit migrate",
     "db:seed": "tsx scripts/seed.ts",
     "seed:files": "tsx scripts/generate-seed-pdfs.ts",
-    "ai:smoke": "tsx scripts/ai-smoke.ts",
-    "storage:smoke": "tsx scripts/storage-smoke.ts"
+    "ai:smoke": "node --conditions=react-server --import tsx scripts/ai-smoke.ts",
+    "storage:smoke": "node --conditions=react-server --import tsx scripts/storage-smoke.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
@@ -46,6 +46,7 @@
     "drizzle-kit": "^0.31.11",
     "eslint": "^9",
     "eslint-config-next": "16.4.5",
+    "sharp": "^0.35.5",
     "tailwindcss": "^4",
     "tsx": "^4.23.15",
     "typescript": "^5",
