@@ -333,6 +333,7 @@ export async function resetDemo({
             : new Date(admittedAt.getTime() + 10 * 60_000),
           confirmedBy: desk,
           confirmedAt: new Date(admittedAt.getTime() + 20 * 60_000),
+          identityEvidence: [{ fieldKey: "patient_name", value: claim.name, sourceSnippet: claim.name }],
         };
         await database
           .insert(documents)

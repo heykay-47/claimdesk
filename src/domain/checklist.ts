@@ -1,4 +1,9 @@
 import { pendingRequiredFields, type ReviewedField } from "./preauth-fields";
+import {
+  hasIdentityMismatch,
+  type IdentityCheckedDocument,
+  type IdentityDifference,
+} from "./identity";
 
 export type Stage = "PREAUTH" | "ENHANCEMENT" | "DISCHARGE";
 export type Rule = {
@@ -46,7 +51,7 @@ export function resolveRules(
     a.documentTypeId.localeCompare(b.documentTypeId),
   );
 }
-export type ChecklistDocument = {
+export type ChecklistDocument = IdentityCheckedDocument & {
   id: string;
   documentTypeId: string | null;
   documentTypeKey?: string | null;
@@ -67,6 +72,7 @@ export type ChecklistBlocker =
       state: "UNVERIFIED" | "STALE" | "MISSING";
     }
   | { kind: "UNSORTED"; documentId: string }
+  | { kind: "IDENTITY"; documentId: string; differences: IdentityDifference[] }
   | { kind: "FIELD"; fieldKey: string; label: string };
 export type ChecklistResult = {
   slots: ChecklistSlot[];
@@ -101,7 +107,9 @@ export function evaluateChecklist(
           doc.documentTypeId === rule.documentTypeId &&
           !unsortedIds.has(doc.id),
       );
-      const confirmed = matches.filter((doc) => doc.status === "CONFIRMED");
+      const confirmed = matches.filter(
+        (doc) => doc.status === "CONFIRMED" && !hasIdentityMismatch(doc),
+      );
       // A date-only report is interpreted at IST midnight, not server-local midnight.
       const timestamp = (doc: ChecklistDocument) =>
         doc.documentDate
@@ -119,22 +127,42 @@ export function evaluateChecklist(
         return { ...base, state: "STALE", document: confirmed[0] };
       return { ...base, state: matches.length ? "UNVERIFIED" : "MISSING" };
     });
-  const blockers: ChecklistBlocker[] = slots.flatMap((slot) =>
-    slot.rule.requirement === "REQUIRED" && slot.state !== "SATISFIED"
+  const blockers: ChecklistBlocker[] = documents.flatMap((doc) =>
+    hasIdentityMismatch(doc) && doc.identity?.kind === "MISMATCH"
       ? [
           {
-            kind: "DOCUMENT" as const,
-            documentTypeId: slot.rule.documentTypeId,
-            state: slot.state,
+            kind: "IDENTITY" as const,
+            documentId: doc.id,
+            differences: doc.identity.differences,
           },
         ]
       : [],
+  );
+  blockers.push(
+    ...slots.flatMap((slot) =>
+      slot.rule.requirement === "REQUIRED" && slot.state !== "SATISFIED"
+        ? [
+            {
+              kind: "DOCUMENT" as const,
+              documentTypeId: slot.rule.documentTypeId,
+              state: slot.state,
+            },
+          ]
+        : [],
+    ),
   );
   for (const doc of unsorted)
     if (doc.status !== "CONFIRMED")
       blockers.push({ kind: "UNSORTED", documentId: doc.id });
   if (context.stage === "PREAUTH")
-    for (const field of pendingRequiredFields(context.fields))
+    for (const field of pendingRequiredFields(
+      context.fields.filter(
+        (field) =>
+          !documents.some(
+            (doc) => doc.id === field.documentId && hasIdentityMismatch(doc),
+          ),
+      ),
+    ))
       blockers.push({ kind: "FIELD", fieldKey: field.key, label: field.label });
   const counts = {
     SATISFIED: 0,

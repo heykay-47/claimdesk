@@ -64,8 +64,11 @@ import {
   saveRule,
   deleteRule,
   InputError,
+  processDocument,
 } from "../src/server/mutations";
 import { getClaimChecklist } from "../src/server/claim-checklist";
+import { claimFile } from "../src/server/workspace";
+import { GET as documentFile } from "../src/app/api/documents/[id]/file/route";
 import { AuthorizationError, AuthenticationError } from "../src/server/auth";
 import { runAction } from "../src/app/actions";
 import { resetDemoAsHead } from "../src/server/demo-reset";
@@ -83,6 +86,22 @@ const ultrasound = new FakeAiClient({
   fields: [],
 });
 const claimId = seedId("claim:CLM-3381");
+const wrongPatient = new FakeAiClient({
+  document_type_key: "DOCTOR_NOTES",
+  confidence: 0.98,
+  reason: "Handwritten admission note",
+  document_date: null,
+  fields: [
+    {
+      key: "patient_name",
+      value: "Imran Shaikh",
+      source_snippet: "Patient: Imran Shaikh, 34/M",
+      confidence: 0.98,
+    },
+    { key: "age", value: "34", source_snippet: "34/M", confidence: 0.98 },
+    { key: "gender", value: "M", source_snippet: "34/M", confidence: 0.98 },
+  ],
+});
 async function upload(ai = ultrasound) {
   const metadata = {
     claimId,
@@ -230,6 +249,188 @@ describe("audited workspace mutations against real Postgres", () => {
     const checklist = await getClaimChecklist(claimId);
     expect(checklist.unsorted.map((d) => d.id)).toContain(result.id);
     expect(checklist.ready).toBe(false);
+  });
+  it("blocks a wrong-patient note even when all required slots already have confirmed files", async () => {
+    const ultrasound = await upload();
+    await reviewDocument({ documentId: ultrasound.id, action: "CONFIRM" });
+    const result = await upload(wrongPatient);
+    const checklist = await getClaimChecklist(claimId);
+    expect(checklist.ready).toBe(false);
+    expect(checklist.blockers).toContainEqual(
+      expect.objectContaining({ kind: "IDENTITY", documentId: result.id }),
+    );
+    await expect(
+      reviewDocument({ documentId: result.id, action: "CONFIRM" }),
+    ).rejects.toThrow("Different patient");
+    await reviewDocument({
+      documentId: result.id,
+      action: "MOVE",
+      documentTypeId: seedId("type:PHOTO_ID"),
+    });
+    expect((await getClaimChecklist(claimId)).blockers).toContainEqual(
+      expect.objectContaining({ kind: "IDENTITY", documentId: result.id }),
+    );
+    const fields = await database
+      .select()
+      .from(schema.extractedFields)
+      .where(eq(schema.extractedFields.documentId, result.id));
+    expect(fields.find((field) => field.fieldKey === "gender")?.value).toBe(
+      "Male",
+    );
+    const name = fields.find((field) => field.fieldKey === "patient_name")!;
+    await expect(
+      reviewField({
+        claimId,
+        fieldId: name.id,
+        fieldKey: "patient_name",
+        action: "CONFIRM",
+        value: "Rajendra Pawar",
+      }),
+    ).rejects.toThrow("different patient");
+    await reviewField({
+      claimId,
+      fieldId: name.id,
+      fieldKey: "patient_name",
+      action: "REJECT",
+      value: name.value,
+    });
+    expect((await getClaimChecklist(claimId)).blockers).toContainEqual(
+      expect.objectContaining({ kind: "IDENTITY", documentId: result.id }),
+    );
+    await database
+      .update(schema.claims)
+      .set({ status: "PREAUTH_DRAFT" })
+      .where(eq(schema.claims.id, claimId));
+    await expect(
+      transitionClaim({ claimId, action: "submit_preauth" }),
+    ).rejects.toThrow("Submission blocked");
+    await reviewDocument({ documentId: result.id, action: "CONFIRM_IDENTITY" });
+    const cleared = await getClaimChecklist(claimId);
+    expect(
+      cleared.blockers.some((blocker) => blocker.kind === "IDENTITY"),
+    ).toBe(false);
+    expect(cleared.ready).toBe(true);
+    const [file] = await database
+      .select()
+      .from(schema.documents)
+      .where(eq(schema.documents.id, result.id));
+    expect(file).toMatchObject({
+      status: "CONFIRMED",
+      identityOverrideBy: seedId("user:desk"),
+    });
+    expect(file.identityOverrideAt).toBeInstanceOf(Date);
+    const audits = await database
+      .select()
+      .from(schema.auditLogs)
+      .where(eq(schema.auditLogs.entityId, result.id));
+    expect(audits).toContainEqual(
+      expect.objectContaining({
+        action: "DOCUMENT_IDENTITY_OVERRIDE",
+        actorId: seedId("user:desk"),
+        detail: expect.objectContaining({
+          differences: [
+            expect.objectContaining({
+              found: "Imran Shaikh",
+              expected: "Rajendra Pawar",
+            }),
+          ],
+        }),
+      }),
+    );
+    await transitionClaim({ claimId, action: "submit_preauth" });
+  });
+  it("removes a mismatched document and its candidates from every claim view while retaining an audit", async () => {
+    const result = await upload(wrongPatient);
+    await expect(
+      reviewDocument({ documentId: result.id, action: "REMOVE" }),
+    ).rejects.toThrow("Confirm removal");
+    await reviewDocument({
+      documentId: result.id,
+      action: "REMOVE",
+      confirmedRemoval: true,
+    });
+    const checklist = await getClaimChecklist(claimId);
+    expect(
+      checklist.blockers.some((blocker) => blocker.kind === "IDENTITY"),
+    ).toBe(false);
+    expect(
+      checklist.slots
+        .flatMap((slot) => slot.documents)
+        .some((document) => document.id === result.id),
+    ).toBe(false);
+    const file = await claimFile("CLM-3381");
+    expect(file.files.some((document) => document.id === result.id)).toBe(
+      false,
+    );
+    expect(file.fields.some((field) => field.documentId === result.id)).toBe(
+      false,
+    );
+    expect(
+      (
+        await documentFile(new Request("https://example.test"), {
+          params: Promise.resolve({ id: result.id }),
+        })
+      ).status,
+    ).toBe(404);
+    await expect(
+      reviewDocument({ documentId: result.id, action: "CONFIRM_IDENTITY" }),
+    ).rejects.toThrow();
+    const [removed] = await database
+      .select()
+      .from(schema.documents)
+      .where(eq(schema.documents.id, result.id));
+    expect(removed.removedAt).toBeInstanceOf(Date);
+    expect(removed.removedBy).toBe(seedId("user:desk"));
+    expect(
+      await database
+        .select()
+        .from(schema.auditLogs)
+        .where(eq(schema.auditLogs.entityId, result.id)),
+    ).toContainEqual(
+      expect.objectContaining({
+        action: "DOCUMENT_REMOVE",
+        actorId: seedId("user:desk"),
+      }),
+    );
+  });
+  it("retains a late identity extraction without overwriting the desk's chosen slot or confirmation", async () => {
+    const ai = new FakeAiClient();
+    ai.classifyAndExtract = async () => {
+      const [processing] = await database
+        .select()
+        .from(schema.documents)
+        .where(eq(schema.documents.status, "PROCESSING"));
+      await reviewDocument({
+        documentId: processing.id,
+        action: "MOVE",
+        documentTypeId: seedId("type:PHOTO_ID"),
+      });
+      await reviewDocument({ documentId: processing.id, action: "CONFIRM" });
+      return wrongPatient.classifyAndExtract();
+    };
+    const result = await upload(ai);
+    const [file] = await database
+      .select()
+      .from(schema.documents)
+      .where(eq(schema.documents.id, result.id));
+    expect(file).toMatchObject({
+      status: "CONFIRMED",
+      documentTypeId: seedId("type:PHOTO_ID"),
+      classifiedBy: "USER",
+    });
+    expect(file.identityEvidence).toContainEqual(
+      expect.objectContaining({
+        fieldKey: "patient_name",
+        value: "Imran Shaikh",
+      }),
+    );
+    expect((await getClaimChecklist(claimId)).blockers).toContainEqual(
+      expect.objectContaining({ kind: "IDENTITY", documentId: result.id }),
+    );
+    const repeat = new FakeAiClient();
+    const classify = vi.spyOn(repeat, "classifyAndExtract");
+    await processDocument(result.id, new Uint8Array([1]), repeat);
+    expect(classify).not.toHaveBeenCalled();
   });
   it("low confidence stays unsorted and moving a confirmed file requires reconfirmation", async () => {
     const result = await upload(

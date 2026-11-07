@@ -276,6 +276,9 @@ fieldset { min-width: 0; }
 @media (max-width: 1023px) { .insights-grid { grid-template-columns: 1fr; } }
 .field-review .control { margin-top: 11px; }
 .source-quote { color: #706b66; font-size: .75rem; margin: 10px 0; padding-left: 12px; border-left: 1px solid #d6d3d1; white-space: pre-wrap; }
+.identity-notice { margin-block: 12px; padding-block: 4px; overflow-wrap: anywhere; }
+.identity-notice.danger-text { color: #b91c1c; }
+.identity-notice .source-quote { color: inherit; }
 .document-preview { position: sticky; top: 24px; overflow: hidden; }
 .document-preview .panel-heading { flex-wrap: wrap; }
 .document-preview select { max-width: 100%; }

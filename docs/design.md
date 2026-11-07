@@ -36,6 +36,18 @@ Phase 2 uses scoped direct browser uploads to keep the full 10 MB limit deployab
 
 The authenticated file route checks the session, looks up the document, reads a private stream, and inserts a view or download audit row. Responses disable browser caching and allow only same-origin framing. The browser sees a scoped upload pathname, not a public read link or store credential. Previews and downloads only use the authenticated application route.
 
+## Patient identity checks
+
+`src/domain/identity.ts` compares extracted patient names, policy numbers, and UHIDs with the claim. The result is `MATCH`, `MISMATCH`, or `UNKNOWN`. The matcher makes no provider request. Names use Unicode normalization, case-insensitive token sets, punctuation normalization, and the six supported honorifics. Reordered names match. Initials can be omitted when two full-name tokens agree. Different full-name tokens, including an additional expanded middle name, require human review. Meaningful Indian-script vowel marks are preserved. Identifiers ignore case, spacing, and punctuation. Every extracted identifier must agree.
+
+The document stores original identity values and source snippets separately from editable pre-auth fields. Migration `0002_high_newton_destine.sql` snapshots existing extracted evidence. New AI results retain identity evidence from all document types, including reports. Pre-auth candidate fields remain limited to the original eligible types. A late extraction stores identity evidence even when a person has already chosen the document's slot. It does not overwrite that choice or confirmation.
+
+A persisted mismatch flag was rejected because it could become stale. Comparing only editable field values was rejected because a field edit or rejection could hide the original contradiction. The chosen design compares immutable evidence at evaluation time. A separate override records the actor and time. The checklist engine adds identity blockers before other blockers, excludes these documents from slot satisfaction, and excludes their fields from pre-auth readiness. Packet export uses the same identity decision for attachments and confirmed cover values.
+
+Normal document confirmation and field confirmation reject an unresolved mismatch on the server. The explicit same-patient action confirms the document and appends `DOCUMENT_IDENTITY_OVERRIDE` with the actor and compared evidence. Moving a document or rejecting a field does not remove the mismatch. Removal requires confirmation, sets `removed_at` and `removed_by`, and appends `DOCUMENT_REMOVE`. Removed documents and their values disappear from claim views and checklist evaluation. Their private file route returns 404. The private object remains under the existing retention boundary rather than being deleted during the database transaction.
+
+`UNKNOWN` is not a positive identity verification. Documents without readable identity remain subject to normal human confirmation. Spelling variants, aliases, and transliteration require a person to inspect the source. The synthetic demo remains unsuitable for real patient records without the privacy work below.
+
 ## Workspace mutations and interface
 
 Mutations authenticate the current database user and parse inputs with Zod. Claim changes lock the claim row. Gates are evaluated from transaction-loaded documents, rules and reviewed fields, not client-provided status. Changes, lifecycle events and audit rows commit together. A reply closes only its own query; only the final open query returns a Query claim to Pre-auth sent. Human document corrections are not overwritten by an AI request that finishes later.

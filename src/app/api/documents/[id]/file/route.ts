@@ -18,7 +18,8 @@ export async function GET(
       .select()
       .from(documents)
       .where(eq(documents.id, parsed.data));
-    if (!document) return new Response("Not found", { status: 404 });
+    if (!document || document.removedAt)
+      return new Response("Not found", { status: 404 });
     const blob = await readDocument(document.blobPathname);
     if (!blob || blob.statusCode !== 200)
       return new Response("File not found", { status: 404 });

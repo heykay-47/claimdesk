@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, desc, eq, getTableColumns } from "drizzle-orm";
+import { and, asc, desc, eq, getTableColumns, isNull } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 import { db } from "@/db";
@@ -21,6 +21,7 @@ import {
   type Stage,
 } from "@/domain/checklist";
 import { STAGE_FOR_STATUS } from "@/domain/claim-status";
+import { withIdentityChecks } from "@/domain/identity";
 import { requireUser } from "./auth";
 
 export type Transaction = Parameters<
@@ -50,6 +51,9 @@ const fileColumns = {
   documentDate: documents.documentDate,
   error: documents.error,
   uploadedAt: documents.uploadedAt,
+  identityEvidence: documents.identityEvidence,
+  identityOverrideBy: documents.identityOverrideBy,
+  identityOverrideAt: documents.identityOverrideAt,
 };
 export async function checklistInTransaction(
   tx: Transaction,
@@ -62,11 +66,14 @@ export async function checklistInTransaction(
       .select(fileColumns)
       .from(documents)
       .leftJoin(documentTypes, eq(documents.documentTypeId, documentTypes.id))
-      .where(eq(documents.claimId, claim.id)),
+      .where(and(eq(documents.claimId, claim.id), isNull(documents.removedAt))),
     tx
-      .select()
+      .select(getTableColumns(extractedFields))
       .from(extractedFields)
-      .where(eq(extractedFields.claimId, claim.id)),
+      .innerJoin(documents, eq(documents.id, extractedFields.documentId))
+      .where(
+        and(eq(extractedFields.claimId, claim.id), isNull(documents.removedAt)),
+      ),
   ]);
   return evaluateChecklist(
     resolveRules(rules, {
@@ -74,7 +81,7 @@ export async function checklistInTransaction(
       procedureId: claim.procedureId,
       stage,
     }),
-    files,
+    withIdentityChecks(claim, files, fields),
     new Date(),
     { stage, fields },
   );
@@ -98,8 +105,13 @@ export async function worklist() {
     db()
       .select(fileColumns)
       .from(documents)
-      .leftJoin(documentTypes, eq(documents.documentTypeId, documentTypes.id)),
-    db().select().from(extractedFields),
+      .leftJoin(documentTypes, eq(documents.documentTypeId, documentTypes.id))
+      .where(isNull(documents.removedAt)),
+    db()
+      .select(getTableColumns(extractedFields))
+      .from(extractedFields)
+      .innerJoin(documents, eq(documents.id, extractedFields.documentId))
+      .where(isNull(documents.removedAt)),
     db().select().from(queries).orderBy(asc(queries.dueAt)),
   ]);
   const now = new Date();
@@ -111,7 +123,11 @@ export async function worklist() {
         procedureId: row.procedure.id,
         stage,
       }),
-      files.filter((f) => f.claimId === row.claim.id),
+      withIdentityChecks(
+        row.claim,
+        files.filter((f) => f.claimId === row.claim.id),
+        fields,
+      ),
       now,
       { stage, fields: fields.filter((f) => f.claimId === row.claim.id) },
     );
@@ -151,13 +167,21 @@ export async function claimFile(rawCode: string, stageOverride?: Stage) {
       .select(fileColumns)
       .from(documents)
       .leftJoin(documentTypes, eq(documents.documentTypeId, documentTypes.id))
-      .where(eq(documents.claimId, row.claim.id))
+      .where(
+        and(eq(documents.claimId, row.claim.id), isNull(documents.removedAt)),
+      )
       .orderBy(desc(documents.uploadedAt)),
     db()
       .select({ ...getTableColumns(extractedFields), reviewer: users.name })
       .from(extractedFields)
+      .innerJoin(documents, eq(documents.id, extractedFields.documentId))
       .leftJoin(users, eq(extractedFields.reviewedBy, users.id))
-      .where(eq(extractedFields.claimId, row.claim.id))
+      .where(
+        and(
+          eq(extractedFields.claimId, row.claim.id),
+          isNull(documents.removedAt),
+        ),
+      )
       .orderBy(desc(extractedFields.reviewedAt)),
     db()
       .select()
@@ -185,7 +209,8 @@ export async function claimFile(rawCode: string, stageOverride?: Stage) {
     procedureId: row.procedure.id,
     stage,
   });
-  const checklist = evaluateChecklist(resolved, files, new Date(), {
+  const checkedFiles = withIdentityChecks(row.claim, files, fields);
+  const checklist = evaluateChecklist(resolved, checkedFiles, new Date(), {
     stage,
     fields,
   });
@@ -199,14 +224,14 @@ export async function claimFile(rawCode: string, stageOverride?: Stage) {
             procedureId: row.procedure.id,
             stage: currentStage,
           }),
-          files,
+          checkedFiles,
           new Date(),
           { stage: currentStage, fields },
         );
   return {
     ...row,
     stage,
-    files,
+    files: checkedFiles,
     fields,
     queries: inbox,
     events,

@@ -15,6 +15,13 @@
       "when": 1794043431808,
       "tag": "0001_first_terror",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794048424332,
+      "tag": "0002_high_newton_destine",
+      "breakpoints": true
     }
   ]
 }

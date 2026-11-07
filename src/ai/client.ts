@@ -1,5 +1,7 @@
 import { z } from "zod";
 import { PREAUTH_FIELDS } from "@/domain/preauth-fields";
+import { normalizeGender } from "@/domain/gender";
+import { IDENTITY_FIELD_KEYS } from "@/domain/identity";
 
 export type DocumentTypeCatalogue = readonly {
   id: string;
@@ -15,7 +17,10 @@ export const classificationSchema = z.object({
   fields: z
     .array(
       z.object({
-        key: z.enum(PREAUTH_FIELDS.map((field) => field.key)),
+        key: z.enum([
+          ...PREAUTH_FIELDS.map((field) => field.key),
+          ...IDENTITY_FIELD_KEYS,
+        ]),
         value: z.string().max(5000),
         source_snippet: z.string().max(5000),
         confidence: z.number().min(0).max(1),
@@ -83,12 +88,22 @@ export async function classifyForReview(
       documentDate: result.document_date,
       classifiedBy: "AI" as const,
       error: null,
+      identityEvidence: result.fields
+        .filter((field) =>
+          (IDENTITY_FIELD_KEYS as readonly string[]).includes(field.key),
+        )
+        .map((field) => ({
+          fieldKey: field.key,
+          value: field.value,
+          sourceSnippet: field.source_snippet,
+        })),
       fields: (fieldTypes.includes(result.document_type_key)
-        ? result.fields
+        ? result.fields.filter((field) => field.key !== "uhid")
         : []
       ).map((field) => ({
         fieldKey: field.key,
-        value: field.value,
+        value:
+          field.key === "gender" ? normalizeGender(field.value) : field.value,
         sourceSnippet: field.source_snippet,
         confidence: field.confidence,
         status: "PENDING" as const,

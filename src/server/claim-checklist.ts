@@ -1,5 +1,5 @@
 import "server-only";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull, getTableColumns } from "drizzle-orm";
 import { db } from "@/db";
 import {
   claims,
@@ -14,6 +14,7 @@ import {
   type Stage,
 } from "@/domain/checklist";
 import { STAGE_FOR_STATUS } from "@/domain/claim-status";
+import { withIdentityChecks } from "@/domain/identity";
 import { requireUser } from "./auth";
 export async function getClaimChecklist(
   claimId: string,
@@ -37,19 +38,29 @@ export async function getClaimChecklist(
         status: documents.status,
         documentDate: documents.documentDate,
         uploadedAt: documents.uploadedAt,
+        identityEvidence: documents.identityEvidence,
+        identityOverrideBy: documents.identityOverrideBy,
       })
       .from(documents)
       .leftJoin(documentTypes, eq(documentTypes.id, documents.documentTypeId))
-      .where(eq(documents.claimId, claimId)),
+      .where(and(eq(documents.claimId, claimId), isNull(documents.removedAt))),
     db()
-      .select()
+      .select(getTableColumns(extractedFields))
       .from(extractedFields)
-      .where(eq(extractedFields.claimId, claimId)),
+      .innerJoin(documents, eq(documents.id, extractedFields.documentId))
+      .where(
+        and(eq(extractedFields.claimId, claimId), isNull(documents.removedAt)),
+      ),
   ]);
   const resolved = resolveRules(rules, {
     payerId: claim.payerId,
     procedureId: claim.procedureId,
     stage,
   });
-  return evaluateChecklist(resolved, files, now, { stage, fields });
+  return evaluateChecklist(
+    resolved,
+    withIdentityChecks(claim, files, fields),
+    now,
+    { stage, fields },
+  );
 }

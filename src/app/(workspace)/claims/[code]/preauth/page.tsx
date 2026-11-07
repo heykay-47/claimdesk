@@ -2,6 +2,7 @@ import { claimFile } from "@/server/workspace";
 import { pendingRequiredFields } from "@/domain/preauth-fields";
 import { PageTitle } from "@/components/workspace/primitives";
 import { PreauthReview } from "@/components/workspace/preauth-review";
+import { hasIdentityMismatch } from "@/domain/identity";
 export default async function PreauthPage({
   params,
 }: {
@@ -9,7 +10,14 @@ export default async function PreauthPage({
 }) {
   const { code } = await params;
   const file = await claimFile(code);
-  const pending = pendingRequiredFields(file.fields).length;
+  const pending = pendingRequiredFields(
+    file.fields.filter(
+      (field) =>
+        !file.files.some(
+          (doc) => doc.id === field.documentId && hasIdentityMismatch(doc),
+        ),
+    ),
+  ).length;
   return (
     <>
       <PageTitle

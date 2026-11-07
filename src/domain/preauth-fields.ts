@@ -48,6 +48,7 @@ export const PREAUTH_FIELDS = [
 ] as const;
 export type PreauthFieldKey = (typeof PREAUTH_FIELDS)[number]["key"];
 export type ReviewedField = {
+  documentId?: string;
   fieldKey: string;
   status: "PENDING" | "CONFIRMED" | "REJECTED";
   value: string;

@@ -15,6 +15,7 @@ import {
 } from "@/db/schema";
 import { canTransition, nextActions, TRANSITIONS } from "@/domain/claim-status";
 import { PREAUTH_FIELDS } from "@/domain/preauth-fields";
+import { comparePatientIdentity, hasIdentityMismatch } from "@/domain/identity";
 import { queryDueAt } from "@/domain/deadline";
 import { formatMoney } from "@/domain/format";
 import {
@@ -238,7 +239,8 @@ export async function reviewDocument(input: unknown) {
   const data = z
     .object({
       documentId: id,
-      action: z.enum(["CONFIRM", "MOVE"]),
+      action: z.enum(["CONFIRM", "MOVE", "CONFIRM_IDENTITY", "REMOVE"]),
+      confirmedRemoval: z.boolean().default(false),
       documentTypeId: id.optional(),
       documentDate: z.iso.date().nullable().optional(),
     })
@@ -249,17 +251,46 @@ export async function reviewDocument(input: unknown) {
       .from(documents)
       .where(eq(documents.id, data.documentId));
     if (!reference) throw new InputError("Document not found");
-    await lockClaim(tx, reference.claimId);
+    const claim = await lockClaim(tx, reference.claimId);
     const [file] = await tx
       .select()
       .from(documents)
       .where(eq(documents.id, reference.id));
-    if (!file)
+    if (!file || file.removedAt)
       throw new InputError(
         "The demo was reset. Reload the claim before reviewing this document.",
       );
+    if (data.action === "REMOVE") {
+      if (!data.confirmedRemoval)
+        throw new InputError("Confirm removal from this claim.");
+      await tx
+        .update(documents)
+        .set({ removedAt: new Date(), removedBy: user.id })
+        .where(eq(documents.id, file.id));
+      await record(tx, user.id, "DOCUMENT_REMOVE", "document", file.id, {
+        claimId: claim.id,
+      });
+      return;
+    }
+    const fields = await tx
+      .select()
+      .from(extractedFields)
+      .where(eq(extractedFields.documentId, file.id));
+    const identity = comparePatientIdentity(
+      claim,
+      file.identityEvidence ?? fields,
+    );
+    const mismatched = hasIdentityMismatch({ ...file, identity });
+    if (data.action === "CONFIRM" && mismatched)
+      throw new InputError(
+        "Different patient detected. Remove the document or use Same patient — confirm after checking the source.",
+      );
+    if (data.action === "CONFIRM_IDENTITY" && !mismatched)
+      throw new InputError(
+        "No unresolved identity mismatch. Reload the claim.",
+      );
     if (
-      data.action === "CONFIRM" &&
+      (data.action === "CONFIRM" || data.action === "CONFIRM_IDENTITY") &&
       (!file.documentTypeId ||
         file.status === "FAILED" ||
         file.status === "PROCESSING")
@@ -270,11 +301,17 @@ export async function reviewDocument(input: unknown) {
     await tx
       .update(documents)
       .set(
-        data.action === "CONFIRM"
+        data.action !== "MOVE"
           ? {
               status: "CONFIRMED",
               confirmedBy: user.id,
               confirmedAt: new Date(),
+              ...(data.action === "CONFIRM_IDENTITY"
+                ? {
+                    identityOverrideBy: user.id,
+                    identityOverrideAt: new Date(),
+                  }
+                : {}),
               ...(data.documentDate !== undefined
                 ? { documentDate: data.documentDate }
                 : {}),
@@ -292,10 +329,19 @@ export async function reviewDocument(input: unknown) {
     await record(
       tx,
       user.id,
-      data.action === "CONFIRM" ? "DOCUMENT_CONFIRM" : "DOCUMENT_MOVE",
+      data.action === "CONFIRM_IDENTITY"
+        ? "DOCUMENT_IDENTITY_OVERRIDE"
+        : data.action === "CONFIRM"
+          ? "DOCUMENT_CONFIRM"
+          : "DOCUMENT_MOVE",
       "document",
       file.id,
-      { documentTypeId: data.documentTypeId ?? file.documentTypeId },
+      {
+        documentTypeId: data.documentTypeId ?? file.documentTypeId,
+        ...(data.action === "CONFIRM_IDENTITY" && identity.kind === "MISMATCH"
+          ? { claimId: claim.id, differences: identity.differences }
+          : {}),
+      },
     );
   });
 }
@@ -310,7 +356,9 @@ export async function processDocument(
     .select()
     .from(documents)
     .where(eq(documents.id, documentId));
-  if (!file) throw new InputError("Document not found");
+  if (!file || file.removedAt) throw new InputError("Document not found");
+  if (!["PROCESSING", "FAILED"].includes(file.status))
+    return { status: file.status, error: file.error };
   const catalogue = await db().select().from(documentTypes);
   const result = await classifyForReview(
     client,
@@ -324,19 +372,26 @@ export async function processDocument(
       .select()
       .from(documents)
       .where(eq(documents.id, file.id));
-    if (!current)
+    if (!current || current.removedAt)
       throw new InputError(
         "The demo was reset during processing. Reload the claim and upload again.",
       );
-    if (
+    const humanReviewed =
       current.classifiedBy === "USER" ||
-      !["PROCESSING", "FAILED"].includes(current.status)
+      !["PROCESSING", "FAILED"].includes(current.status);
+    if (
+      humanReviewed &&
+      (current.identityEvidence !== null || result.status === "FAILED")
     )
       return;
     const { fields, ...classification } = result;
     await tx
       .update(documents)
-      .set(classification)
+      .set(
+        humanReviewed && result.status === "NEEDS_REVIEW"
+          ? { identityEvidence: result.identityEvidence }
+          : classification,
+      )
       .where(eq(documents.id, file.id));
     if (fields.length)
       await tx.insert(extractedFields).values(
@@ -359,7 +414,7 @@ export async function retryDocument(input: unknown, client?: AiClient) {
     .select()
     .from(documents)
     .where(eq(documents.id, documentId));
-  if (!file || file.status !== "FAILED")
+  if (!file || file.removedAt || file.status !== "FAILED")
     throw new InputError("Only failed documents can be retried.");
   const blob = await readDocument(file.blobPathname);
   if (!blob || blob.statusCode !== 200)
@@ -391,7 +446,7 @@ export async function reviewField(input: unknown) {
     if (definition.type === "money") rupees.parse(data.value);
   }
   await db().transaction(async (tx) => {
-    await lockClaim(tx, data.claimId);
+    const claim = await lockClaim(tx, data.claimId);
     const [existing] = data.fieldId
       ? await tx
           .select()
@@ -405,20 +460,33 @@ export async function reviewField(input: unknown) {
           )
       : [];
     if (data.fieldId && !existing) throw new InputError("Field not found");
-    if (!existing) {
-      if (data.action === "REJECT" || !data.documentId)
-        throw new InputError("Choose the source document for this field.");
-      const [source] = await tx
-        .select({ id: documents.id })
-        .from(documents)
-        .where(
-          and(
-            eq(documents.id, data.documentId),
-            eq(documents.claimId, data.claimId),
-          ),
+    const sourceId = existing?.documentId ?? data.documentId;
+    const [sourceFile] = sourceId
+      ? await tx
+          .select()
+          .from(documents)
+          .where(
+            and(eq(documents.id, sourceId), eq(documents.claimId, claim.id)),
+          )
+      : [];
+    if (!sourceFile || sourceFile.removedAt)
+      throw new InputError("Source document not found");
+    if (data.action === "CONFIRM") {
+      const sourceFields = await tx
+        .select()
+        .from(extractedFields)
+        .where(eq(extractedFields.documentId, sourceFile.id));
+      const identity = comparePatientIdentity(
+        claim,
+        sourceFile.identityEvidence ?? sourceFields,
+      );
+      if (hasIdentityMismatch({ ...sourceFile, identity }))
+        throw new InputError(
+          "This source may belong to a different patient. Resolve its identity in the claim file before confirming fields.",
         );
-      if (!source) throw new InputError("Source document not found");
     }
+    if (!existing && data.action === "REJECT")
+      throw new InputError("Choose a suggestion to reject.");
     if (data.action === "CONFIRM")
       await tx
         .update(extractedFields)

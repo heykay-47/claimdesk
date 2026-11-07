@@ -109,6 +109,22 @@ describe("AI review boundary", () => {
         )
       ).fields,
     ).toEqual([]);
+    expect(
+      await classifyForReview(
+        new FakeAiClient({ ...result, document_type_key: "CBC_REPORT" }),
+        new Uint8Array([1]),
+        "application/pdf",
+        catalogue,
+      ),
+    ).toMatchObject({
+      identityEvidence: [
+        {
+          fieldKey: "patient_name",
+          value: "Fictional Patient",
+          sourceSnippet: "Name: Fictional Patient",
+        },
+      ],
+    });
   });
   it("query failures retain an explicit error rather than fabricating a summary", async () => {
     expect(

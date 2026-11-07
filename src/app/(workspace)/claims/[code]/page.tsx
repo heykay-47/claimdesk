@@ -14,6 +14,7 @@ import { pendingRequiredFields } from "@/domain/preauth-fields";
 import { blockerText } from "@/domain/checklist-labels";
 import { PacketDownload } from "@/components/workspace/packet-download";
 import { DEDUCTION_LABELS } from "@/domain/settlement";
+import { hasIdentityMismatch } from "@/domain/identity";
 export default async function ClaimPage({
   params,
   searchParams,
@@ -51,7 +52,14 @@ export default async function ClaimPage({
   const preauth = file.events.find((e) => e.toStatus === "PREAUTH_SUBMITTED");
   const final = file.events.find((e) => e.toStatus === "FINAL_BILL_SUBMITTED");
   const settled = file.events.find((e) => e.toStatus === "SETTLED");
-  const pending = pendingRequiredFields(file.fields).length;
+  const pending = pendingRequiredFields(
+    file.fields.filter(
+      (field) =>
+        !file.files.some(
+          (doc) => doc.id === field.documentId && hasIdentityMismatch(doc),
+        ),
+    ),
+  ).length;
   return (
     <>
       <Link href="/claims" className="back-link">

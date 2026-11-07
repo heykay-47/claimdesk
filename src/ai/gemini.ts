@@ -9,6 +9,7 @@ import {
   type GenerateContentResponse,
 } from "@google/genai";
 import { PREAUTH_FIELDS } from "@/domain/preauth-fields";
+import { IDENTITY_FIELD_KEYS } from "@/domain/identity";
 import {
   classificationSchema,
   querySummarySchema,
@@ -41,7 +42,12 @@ const classificationResponse: Schema = {
         properties: {
           key: {
             type: Type.STRING,
-            enum: PREAUTH_FIELDS.map((field) => field.key),
+            enum: [
+              ...new Set([
+                ...PREAUTH_FIELDS.map((field) => field.key),
+                ...IDENTITY_FIELD_KEYS,
+              ]),
+            ],
           },
           value: string,
           source_snippet: string,
@@ -168,7 +174,7 @@ export class GeminiAiClient implements AiClient {
     const result = await this.generate(
       [
         {
-          text: `Classify using this catalogue ${JSON.stringify(catalogue.map(({ key, label, aiHint }) => ({ key, label, aiHint })))}. Use OTHER when unsure. document_date must be YYYY-MM-DD or null. Extract pre-auth fields only from PREAUTH_FORM, DOCTOR_NOTES, POLICY_CARD, PHOTO_ID, COST_ESTIMATE. Allowed fields ${JSON.stringify(PREAUTH_FIELDS)}. Omit unreadable fields. Cite exact source snippets; dates YYYY-MM-DD, estimated_cost in rupees. Do not confirm any data.`,
+          text: `Classify using this catalogue ${JSON.stringify(catalogue.map(({ key, label, aiHint }) => ({ key, label, aiHint })))}. Use OTHER when unsure. document_date must be YYYY-MM-DD or null. Extract patient_name, policy_number and uhid wherever legible on any document, including reports. The identity must refer to the patient, not the doctor, policyholder or relative. Extract other pre-auth fields only from PREAUTH_FORM, DOCTOR_NOTES, POLICY_CARD, PHOTO_ID, COST_ESTIMATE. Allowed pre-auth fields ${JSON.stringify(PREAUTH_FIELDS)}. Omit unreadable fields. Cite exact source snippets; dates YYYY-MM-DD, gender Male/Female/Other, estimated_cost in rupees. Do not confirm any data.`,
         },
         {
           inlineData: {

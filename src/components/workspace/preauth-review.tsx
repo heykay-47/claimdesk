@@ -7,6 +7,8 @@ import type { ClaimFile } from "@/server/workspace";
 import { runAction } from "@/app/actions";
 import { FileContent } from "./document-preview";
 import { formatIST } from "@/domain/format";
+import { hasIdentityMismatch } from "@/domain/identity";
+import { IdentityNotice } from "./identity-notice";
 function hasConflict(fields: ClaimFile["fields"]) {
   return (
     new Set(
@@ -274,13 +276,25 @@ function FieldReview({
     </section>
   );
 }
-export function PreauthReview({ file }: { file: ClaimFile }) {
+export function PreauthReview({ file: originalFile }: { file: ClaimFile }) {
+  const mismatched = originalFile.files.filter(hasIdentityMismatch);
+  const blockedIds = new Set(mismatched.map((document) => document.id));
+  const file = {
+    ...originalFile,
+    fields: originalFile.fields.filter(
+      (field) => !blockedIds.has(field.documentId),
+    ),
+    files: originalFile.files.filter(
+      (document) => !blockedIds.has(document.id),
+    ),
+  };
   const [previewId, setPreviewId] = useState(
     file.files.find((doc) => doc.documentTypeKey === "PREAUTH_FORM")?.id ??
       file.files[0]?.id ??
+      originalFile.files[0]?.id ??
       "",
   );
-  const source = file.files.find((doc) => doc.id === previewId);
+  const source = originalFile.files.find((doc) => doc.id === previewId);
   const confirmed = PREAUTH_FIELDS.filter(
     (definition) =>
       !hasConflict(
@@ -313,55 +327,78 @@ export function PreauthReview({ file }: { file: ClaimFile }) {
     );
   }
   return (
-    <div className="field-review-grid">
-      <div className="panel">
-        {ordered.length ? (
-          ordered.map(fieldRow)
-        ) : (
-          <div className="panel-body">
-            <h2 className="success-text">All fields confirmed</h2>
-            <p className="muted text-xs mt-2">
-              Open the confirmed group to inspect a source or edit a value.
-            </p>
-          </div>
-        )}
-        {confirmed.length > 0 && (
-          <details className="confirmed-fields">
-            <summary className="panel-body text-sm font-medium">
-              {confirmed.length} confirmed
-            </summary>
-            {confirmed.map(fieldRow)}
-          </details>
-        )}
-      </div>
-      <aside className="document-preview panel">
-        <div className="panel-heading">
-          <h2>Source document</h2>
-          <select
-            className="control"
-            aria-label="Preview source document"
-            value={previewId}
-            onChange={(e) => setPreviewId(e.target.value)}
-          >
-            {!file.files.length && (
-              <option value="">No documents uploaded</option>
-            )}
-            {file.files.map((doc) => (
-              <option value={doc.id} key={doc.id}>
-                {doc.fileName}
-              </option>
-            ))}
-          </select>
-        </div>
-        {source ? (
-          <FileContent file={source} />
-        ) : (
-          <p className="panel-body muted text-sm">
-            Upload documents in the claim file to review extracted evidence
-            here.
+    <>
+      {mismatched.length > 0 && (
+        <section className="panel panel-body mb-5">
+          <h2 className="danger-text">Patient identity must be resolved</h2>
+          <p className="text-sm mt-2">
+            All values from these documents are excluded from the suggestions
+            below. Check the source before confirming it as the same patient.
           </p>
-        )}
-      </aside>
-    </div>
+          {mismatched.map((document) => (
+            <div key={document.id} className="mt-3">
+              <button
+                type="button"
+                className="text-link text-sm break-all text-left"
+                onClick={() => setPreviewId(document.id)}
+              >
+                {document.fileName}
+              </button>
+              <IdentityNotice file={document} />
+            </div>
+          ))}
+        </section>
+      )}
+      <div className="field-review-grid">
+        <div className="panel">
+          {ordered.length ? (
+            ordered.map(fieldRow)
+          ) : (
+            <div className="panel-body">
+              <h2 className="success-text">All fields confirmed</h2>
+              <p className="muted text-xs mt-2">
+                Open the confirmed group to inspect a source or edit a value.
+              </p>
+            </div>
+          )}
+          {confirmed.length > 0 && (
+            <details className="confirmed-fields">
+              <summary className="panel-body text-sm font-medium">
+                {confirmed.length} confirmed
+              </summary>
+              {confirmed.map(fieldRow)}
+            </details>
+          )}
+        </div>
+        <aside className="document-preview panel">
+          <div className="panel-heading">
+            <h2>Source document</h2>
+            <select
+              className="control"
+              aria-label="Preview source document"
+              value={previewId}
+              onChange={(e) => setPreviewId(e.target.value)}
+            >
+              {!originalFile.files.length && (
+                <option value="">No documents uploaded</option>
+              )}
+              {originalFile.files.map((doc) => (
+                <option value={doc.id} key={doc.id}>
+                  {doc.fileName}
+                </option>
+              ))}
+            </select>
+          </div>
+          {source ? (
+            <FileContent file={source} />
+          ) : (
+            <p className="panel-body muted text-sm">
+              Upload documents in the claim file to review extracted evidence
+              here.
+            </p>
+          )}
+        </aside>
+      </div>
+    </>
   );
 }

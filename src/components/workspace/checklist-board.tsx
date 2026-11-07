@@ -19,6 +19,8 @@ import type { ChecklistSlot } from "@/domain/checklist";
 import { ruleSource } from "./primitives";
 import { DocumentLink } from "./document-preview";
 import { ActionButton } from "./action-form";
+import { IdentityNotice } from "./identity-notice";
+import { hasIdentityMismatch } from "@/domain/identity";
 const labels = {
   MISSING: "Missing",
   STALE: "Stale",
@@ -89,6 +91,7 @@ function DocumentCard({
         {file.documentDate && ` · ${file.documentDate}`}
       </p>
       {file.error && <p className="danger-text text-xs mb-2">{file.error}</p>}
+      <IdentityNotice file={file} />
       {file.aiReason && (
         <details>
           <summary>AI reasoning</summary>
@@ -97,6 +100,7 @@ function DocumentCard({
       )}
       <div className="button-row">
         {file.status !== "CONFIRMED" &&
+          !hasIdentityMismatch(file) &&
           file.documentTypeId &&
           file.status !== "FAILED" && (
             <ActionButton
@@ -151,7 +155,7 @@ function DocumentCard({
             value={date}
             onChange={(event) => setDate(event.target.value)}
           />
-          {file.status === "CONFIRMED" && (
+          {file.status === "CONFIRMED" && !hasIdentityMismatch(file) && (
             <ActionButton
               action="reviewDocument"
               values={{
@@ -199,11 +203,17 @@ export function ChecklistBoard({ file }: { file: ClaimFile }) {
   const displayed = new Set(
     file.checklist.slots.flatMap((s) => s.documents.map((d) => d.id)),
   );
-  const unsorted = file.files.filter((d) =>
-    file.checklist.unsorted.some((u) => u.id === d.id),
+  const mismatched = file.files.filter(hasIdentityMismatch);
+  const unsorted = file.files.filter(
+    (d) =>
+      !hasIdentityMismatch(d) &&
+      file.checklist.unsorted.some((u) => u.id === d.id),
   );
   const other = file.files.filter(
-    (d) => !displayed.has(d.id) && !unsorted.some((u) => u.id === d.id),
+    (d) =>
+      !hasIdentityMismatch(d) &&
+      !displayed.has(d.id) &&
+      !unsorted.some((u) => u.id === d.id),
   );
   function slot(slot: ChecklistSlot) {
     const type = file.ref.types.find((t) => t.id === slot.rule.documentTypeId)!;
@@ -256,14 +266,16 @@ export function ChecklistBoard({ file }: { file: ClaimFile }) {
             Upload {type.label.toLowerCase()}
           </a>
         )}
-        {slot.documents.map((doc) => (
-          <DocumentCard
-            key={doc.id}
-            file={file.files.find((f) => f.id === doc.id)!}
-            types={file.ref.types}
-            move={move}
-          />
-        ))}
+        {slot.documents
+          .filter((doc) => !hasIdentityMismatch(doc))
+          .map((doc) => (
+            <DocumentCard
+              key={doc.id}
+              file={file.files.find((f) => f.id === doc.id)!}
+              types={file.ref.types}
+              move={move}
+            />
+          ))}
       </DropSlot>
     );
   }
@@ -282,6 +294,19 @@ export function ChecklistBoard({ file }: { file: ClaimFile }) {
       }}
     >
       <div aria-busy={pending}>
+        {mismatched.length > 0 && (
+          <section className="gap-slot">
+            <h3 className="danger-text">Check patient identity</h3>
+            {mismatched.map((doc) => (
+              <DocumentCard
+                key={doc.id}
+                file={doc}
+                types={file.ref.types}
+                move={move}
+              />
+            ))}
+          </section>
+        )}
         {gaps.length ? (
           gaps.map(slot)
         ) : (

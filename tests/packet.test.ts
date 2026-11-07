@@ -2,12 +2,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PDFDocument } from "pdf-lib";
 import sharp from "sharp";
 import { buildPacket, type PacketCover } from "../src/server/packet-pdf";
+import * as renderer from "../src/server/packet-pdf";
 
 const state = vi.hoisted(() => ({
   authenticated: true,
   audit: vi.fn(),
   readIds: [] as string[],
   pdf: new Uint8Array(),
+  mismatch: false,
 }));
 vi.mock("@/server/auth", async (original) => {
   const actual = await original<typeof import("../src/server/auth")>();
@@ -59,11 +61,38 @@ vi.mock("@/server/workspace", () => ({
     resolved: [{ id: "rule", documentTypeId: "usg", requirement: "REQUIRED" }],
     checklist: {
       ready: false,
-      blockers: [{ kind: "DOCUMENT", documentTypeId: "usg", state: "MISSING" }],
+      blockers: [
+        { kind: "DOCUMENT", documentTypeId: "usg", state: "MISSING" },
+        ...(state.mismatch
+          ? [
+              {
+                kind: "IDENTITY",
+                documentId: "wrong",
+                differences: [
+                  {
+                    field: "patient_name",
+                    found: "Imran Shaikh",
+                    expected: "Synthetic Patient",
+                    sourceSnippet: "Patient: Imran Shaikh",
+                  },
+                ],
+              },
+            ]
+          : []),
+      ],
       slots: [{ rule: { id: "rule" }, state: "MISSING" }],
     },
     ref: { types: [{ id: "usg", label: "Ultrasound report" }] },
-    fields: [],
+    fields: state.mismatch
+      ? [
+          {
+            documentId: "wrong",
+            fieldKey: "patient_name",
+            status: "CONFIRMED",
+            value: "Imran Shaikh",
+          },
+        ]
+      : [],
     files: [
       {
         id: "confirmed",
@@ -83,6 +112,31 @@ vi.mock("@/server/workspace", () => ({
         sizeBytes: 1000,
         uploadedAt: new Date(),
       },
+      ...(state.mismatch
+        ? [
+            {
+              id: "wrong",
+              fileName: "wrong-patient.pdf",
+              mimeType: "application/pdf",
+              status: "CONFIRMED",
+              documentTypeId: "notes",
+              sizeBytes: 1000,
+              uploadedAt: new Date(),
+              identity: {
+                kind: "MISMATCH",
+                differences: [
+                  {
+                    field: "patient_name",
+                    found: "Imran Shaikh",
+                    expected: "Synthetic Patient",
+                    sourceSnippet: "Patient: Imran Shaikh",
+                  },
+                ],
+              },
+              identityOverrideBy: null,
+            },
+          ]
+        : []),
     ],
   }),
 }));
@@ -105,6 +159,7 @@ const cover: PacketCover = {
 };
 beforeEach(async () => {
   state.authenticated = true;
+  state.mismatch = false;
   state.audit.mockClear();
   state.readIds = [];
   const pdf = await PDFDocument.create();
@@ -187,5 +242,36 @@ describe("claim packet PDF", () => {
         }),
       }),
     );
+  });
+  it("excludes even previously confirmed wrong-patient files and their values, and lists the blocker on the cover", async () => {
+    state.mismatch = true;
+    const render = vi.spyOn(renderer, "buildPacket");
+    try {
+      const response = await GET(new Request("https://example.test"), {
+        params: Promise.resolve({ code: "CLM-3381" }),
+      });
+      expect(response.status).toBe(200);
+      expect(state.readIds).toEqual(["private/confirmed"]);
+      expect(
+        (await PDFDocument.load(await response.arrayBuffer())).getPageCount(),
+      ).toBe(2);
+      expect(render.mock.calls[0][0].blockers).toContainEqual(
+        expect.stringContaining("Imran Shaikh"),
+      );
+      expect(render.mock.calls[0][0].fields).toEqual([]);
+      expect(render.mock.calls[0][1].map((file) => file.id)).toEqual([
+        "confirmed",
+      ]);
+      expect(state.audit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          detail: expect.objectContaining({
+            blockerCount: 2,
+            documentIds: ["confirmed"],
+          }),
+        }),
+      );
+    } finally {
+      render.mockRestore();
+    }
   });
 });

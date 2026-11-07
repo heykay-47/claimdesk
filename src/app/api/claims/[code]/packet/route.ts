@@ -9,6 +9,7 @@ import { readDocument } from "@/server/storage";
 import { buildPacket, PacketError } from "@/server/packet-pdf";
 import { PREAUTH_FIELDS } from "@/domain/preauth-fields";
 import { blockerText } from "@/domain/checklist-labels";
+import { hasIdentityMismatch } from "@/domain/identity";
 
 export const maxDuration = 60;
 export async function GET(
@@ -32,7 +33,10 @@ export async function GET(
       file.resolved.map((rule, index) => [rule.documentTypeId, index]),
     );
     const confirmed = file.files
-      .filter((document) => document.status === "CONFIRMED")
+      .filter(
+        (document) =>
+          document.status === "CONFIRMED" && !hasIdentityMismatch(document),
+      )
       .sort(
         (a, b) =>
           (order.get(a.documentTypeId ?? "") ?? Infinity) -
@@ -105,7 +109,13 @@ export async function GET(
         fields: PREAUTH_FIELDS.flatMap((definition) => {
           const field = file.fields.find(
             (field) =>
-              field.fieldKey === definition.key && field.status === "CONFIRMED",
+              field.fieldKey === definition.key &&
+              field.status === "CONFIRMED" &&
+              file.files.some(
+                (document) =>
+                  document.id === field.documentId &&
+                  !hasIdentityMismatch(document),
+              ),
           );
           return field ? [{ label: definition.label, value: field.value }] : [];
         }),

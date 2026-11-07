@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import { DEDUCTION_REASONS } from "../domain/settlement";
+import type { IdentityField } from "../domain/identity";
 import {
   bigint,
   check,
@@ -212,6 +213,11 @@ export const documents = pgTable(
     uploadedAt: time("uploaded_at").notNull().defaultNow(),
     confirmedBy: uuid("confirmed_by").references(() => users.id),
     confirmedAt: time("confirmed_at"),
+    identityEvidence: jsonb("identity_evidence").$type<IdentityField[]>(),
+    identityOverrideBy: uuid("identity_override_by").references(() => users.id),
+    identityOverrideAt: time("identity_override_at"),
+    removedAt: time("removed_at"),
+    removedBy: uuid("removed_by").references(() => users.id),
   },
   (t) => [
     index("documents_claim_idx").on(t.claimId),
