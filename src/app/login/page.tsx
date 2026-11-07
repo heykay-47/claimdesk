@@ -1,33 +1,31 @@
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { getSession } from "@/server/auth";
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-} from "@/components/ui/card";
+import { Files } from "lucide-react";
 import { LoginForm } from "./login-form";
 
 async function Login() {
   if (await getSession()) redirect("/");
   return (
-    <main className="mx-auto flex min-h-svh w-full max-w-md items-center px-5 py-12">
-      <Card className="w-full">
-        <CardHeader>
-          <p className="mb-4 text-sm font-medium tracking-wide text-muted-foreground">
-            CLAIMDESK
-          </p>
-          <CardTitle className="text-2xl">Sign in to your desk</CardTitle>
-          <CardDescription>
-            Hospital cashless claims and TPA tracking.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+    <main className="login-wrap">
+      <div className="login-card">
+        <div className="wordmark">
+          <span className="brand-mark">
+            <Files size={17} />
+          </span>
+          ClaimDesk
+        </div>
+        <section className="panel">
+          <h1>Sign in to your desk</h1>
+          <p className="muted text-sm">Cashless claims. Clear next steps.</p>
           <LoginForm />
-        </CardContent>
-      </Card>
+        </section>
+        <p className="login-note">
+          A workspace for the hospital insurance desk.
+          <br />
+          Demo only. Every patient and document is fictional.
+        </p>
+      </div>
     </main>
   );
 }

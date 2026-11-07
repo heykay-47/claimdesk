@@ -52,7 +52,7 @@ export function LoginForm() {
       </Button>
       <div className="space-y-2 border-t pt-5">
         <p className="text-sm text-muted-foreground">
-          Try a demo account. All records are fictional.
+          Demo accounts · click to fill
         </p>
         <div className="flex flex-wrap gap-2">
           <Button

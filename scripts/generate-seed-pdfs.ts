@@ -186,6 +186,10 @@ async function main() {
     "seed/files/preauth-form.pdf",
     await syntheticPdf("PREAUTH_FORM", SEED_CLAIMS[0]),
   );
+  await writeFile(
+    "seed/files/CLM-3381-ULTRASOUND_REPORT.pdf",
+    await syntheticPdf("ULTRASOUND_REPORT", SEED_CLAIMS[0]),
+  );
   const lines = [
     "Sahyadri Demo Hospital - Admission note",
     "Patient: Imran Shaikh, 31/M",
@@ -202,7 +206,7 @@ async function main() {
     .png()
     .toFile("seed/files/handwritten-notes.png");
   console.log(
-    `Generated ${count + 1} synthetic PDFs and one handwritten-style PNG.`,
+    `Generated ${count + 2} synthetic PDFs and one handwritten-style PNG.`,
   );
 }
 if (process.argv[1]?.endsWith("generate-seed-pdfs.ts"))
