@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { SignJWT } from "jose";
 import { signSession, verifySession } from "../src/server/session-token";
-import { consumeLoginAttempt } from "../src/server/login-limit";
+import {
+  clearLoginFailures,
+  isLoginBlocked,
+  recordLoginFailure,
+} from "../src/server/login-limit";
 const id = "00000000-0000-4000-a000-000000000001";
 describe("sessions and login limit", () => {
   it("accepts signed sessions and rejects tampered or absent cookies", async () => {
@@ -23,19 +27,24 @@ describe("sessions and login limit", () => {
     expect(await verifySession(token)).toBeNull();
     expect(await verifySession(await signSession("not-an-id"))).toBeNull();
   });
-  it("limits attempts per IP and email and resets after 15 minutes", () => {
-    for (let i = 0; i < 5; i++)
-      expect(consumeLoginAttempt("test-ip", "demo@example.invalid", 0)).toBe(
-        true,
+  it("never blocks repeated successful sign-ins from a shared IP", () => {
+    for (let i = 0; i < 20; i++) {
+      expect(isLoginBlocked("office-ip", "desk@example.invalid", i)).toBe(
+        false,
       );
-    expect(consumeLoginAttempt("test-ip", "demo@example.invalid", 1)).toBe(
+      clearLoginFailures("office-ip", "desk@example.invalid");
+    }
+  });
+  it("blocks an account after 5 failures for 15 minutes; success clears it", () => {
+    for (let i = 0; i < 5; i++)
+      recordLoginFailure("test-ip", "demo@example.invalid", 0);
+    expect(isLoginBlocked("test-ip", "demo@example.invalid", 1)).toBe(true);
+    expect(isLoginBlocked("test-ip", "other@example.invalid", 2)).toBe(false);
+    expect(isLoginBlocked("test-ip", "demo@example.invalid", 15 * 60_000)).toBe(
       false,
     );
-    expect(consumeLoginAttempt("test-ip", "other@example.invalid", 2)).toBe(
-      true,
-    );
-    expect(
-      consumeLoginAttempt("test-ip", "demo@example.invalid", 15 * 60_000),
-    ).toBe(true);
+    recordLoginFailure("ip-2", "demo@example.invalid", 0);
+    clearLoginFailures("ip-2", "demo@example.invalid");
+    expect(isLoginBlocked("ip-2", "demo@example.invalid", 1)).toBe(false);
   });
 });

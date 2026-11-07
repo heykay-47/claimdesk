@@ -4,7 +4,11 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireUser, verifyCredentials } from "@/server/auth";
 import { audit } from "@/server/audit";
-import { consumeLoginAttempt } from "@/server/login-limit";
+import {
+  clearLoginFailures,
+  isLoginBlocked,
+  recordLoginFailure,
+} from "@/server/login-limit";
 import {
   SESSION_COOKIE,
   SESSION_SECONDS,
@@ -31,13 +35,15 @@ export async function login(
   const requestHeaders = await headers();
   const ip =
     requestHeaders.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
-  if (!consumeLoginAttempt(ip, parsed.data.email))
-    return { error: "Too many attempts. Try again in 15 minutes." };
+  if (isLoginBlocked(ip, parsed.data.email))
+    return { error: "Too many failed attempts. Try again in 15 minutes." };
   const user = await verifyCredentials(parsed.data.email, parsed.data.password);
   if (!user) {
+    recordLoginFailure(ip, parsed.data.email);
     await audit({ action: "LOGIN_FAILED", entityType: "session", ip });
     return { error: "Email or password is incorrect." };
   }
+  clearLoginFailures(ip, parsed.data.email);
   const token = await signSession(user.id);
   await audit({
     actorId: user.id,
