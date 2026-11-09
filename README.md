@@ -11,18 +11,18 @@ A workspace for a hospital insurance desk. It keeps every cashless claim in one 
 
 The login page has a button for each account. The demo data resets every day at 03:00 IST. All patients and documents are fictional.
 
-![Claim file CLM-3381: the blocker, the overdue reply and the gap view on the first screen](docs/screenshots/claim-desktop.png)
+![Claim file CLM-3381: what is missing, the overdue reply and the document checklist on the first screen](docs/screenshots/claim-desktop.png)
 
 **Documents:** [Technical design](docs/technical-design.md) · [Deployment and local setup](docs/deployment.md) · [Security and residency notes](docs/design.md) · [Build spec](docs/SPEC.md)
 
 ## Try it in five minutes
 
-1. Sign in as the **Desk executive**. On the worklist, click **Claims blocked by gaps**.
-2. Open **CLM-3381**. The header says *Blocked: Ultrasound report missing*, and a TPA reply is about 3 hours overdue.
+1. Sign in as the **Desk executive**. On the worklist, click **Claims not ready to submit**.
+2. Open **CLM-3381**. The header says *Cannot submit yet: Ultrasound report is missing*, and a TPA reply is about 3 hours overdue.
 3. Upload [`seed/files/CLM-3381-ULTRASOUND_REPORT.pdf`](seed/files/CLM-3381-ULTRASOUND_REPORT.pdf). Rename it first if you like, because the AI reads the content, not the file name. Gemini places it in the Ultrasound slot as *needs confirmation*.
 4. Click **Confirm**. The slot turns green and the claim is ready.
 5. Open **Queries**. Read the AI summary above the original email, draft a reply, and click **Mark reply as sent** on both queries. The claim returns to *Pre-auth sent*.
-6. Open **CLM-3385**. Its platelet report is older than the 24 hours Company D allows for dengue, so the slot shows *Stale*.
+6. Open **CLM-3385**. Its platelet report is older than the 24 hours Company D allows for dengue, so it shows *too old*.
 7. Sign in as the **Desk head** and open **Checklist rules**. Pick Company B, Gall bladder removal, Pre-auth. Each row shows which rule tier it comes from. Change a requirement and watch the affected claim's readiness change.
 
 Try uploading [`seed/files/handwritten-notes.png`](seed/files/handwritten-notes.png), a photo of a handwritten note for Imran Shaikh, to Rajendra Pawar's claim. The system flags the patient mismatch and blocks submission.

@@ -14,7 +14,7 @@ Every patient, claim, document and email in this system is fictional. Each gener
 
 Company A's insurance desk loses about ₹53 lakh a year to deductions caused by missing documents, and about ₹10.5 lakh to the time spent answering TPA queries. In the client's words, “we lose money because a document was missing, not because treatment was wrong.” The desk works from email, Excel and WhatsApp. Nobody can see, before a file goes out, what a particular insurer needs for a particular procedure. Nobody can see when a query reply is due.
 
-ClaimDesk puts every claim in one place. For each claim it computes what the insurer requires at the current stage, what is present, what is stale and what still needs a human check. It blocks submission until the gaps are closed, and it times every query reply. AI sorts uploads and pre-fills the pre-auth fields. A person confirms every AI suggestion, and nothing is ever sent to a TPA automatically.
+ClaimDesk puts every claim in one place. For each claim it computes what the insurer requires at the current stage, what is present, what is too old and what still needs a human check. It blocks submission until the gaps are closed, and it times every query reply. AI sorts uploads and pre-fills the pre-auth fields. A person confirms every AI suggestion, and nothing is ever sent to a TPA automatically.
 
 ## 2. What was built
 
@@ -25,7 +25,7 @@ The core build asked for 6 to 8 screens. ClaimDesk ships the core slice end to e
 | Claim file with status timeline | Done | `/claims/[code]` |
 | Admin checklist per insurer and procedure | Done (desk head only) | `/settings/checklists` |
 | Uploads sorted into checklist slots by AI | Done, real Gemini | Claim file → Upload documents |
-| Gap view | Done | Claim file → Document checklist |
+| Gap view (what is missing before submission) | Done | Claim file → Document checklist |
 | Query inbox with reply countdown | Done | `/queries`, `/queries/[id]` |
 | Pre-auth field pre-fill with source snippet and one-click confirm | Done | `/claims/[code]/preauth` |
 | Roles: desk executive and desk head | Done, enforced on the server | All routes and mutations |
@@ -34,7 +34,9 @@ The core build asked for 6 to 8 screens. ClaimDesk ships the core slice end to e
 | Dashboard of pending approvals and deductions by reason | Done (optional) | `/insights` |
 | Doctor approval of notes from a phone link | Not built (scope cut, see section 12) | — |
 
-There are nine product screens: login, claims worklist, new claim, claim file, pre-auth review, query inbox, query detail with logging, checklist rules and audit log. Insights is a tenth, optional screen.
+There are nine product screens: login, claims worklist, new claim, claim file, pre-auth review, query inbox, query detail with logging, checklist rules and activity log (the audit trail). Insights is a tenth, optional screen.
+
+**Words on screen and words in this document.** The screens use plain terms for desk staff: *insurer or TPA*, *too old*, *items to fix*, *document type* and *activity log*. This document and the code use the technical terms *payer*, `STALE`, *blocker*, *slot* and *audit log* for the same things.
 
 ![Claims worklist](screenshots/worklist-desktop.png)
 
@@ -61,9 +63,10 @@ The stack is Next.js 16 (App Router, React 19, TypeScript strict), Tailwind CSS 
 
 ### Why this shape
 
-- **One deployable, no separate API service.** The desk has 9 people. A single Next.js app with server actions keeps the request path short and leaves one thing to deploy, monitor and explain. The three route handlers exist only where a plain HTTP endpoint is needed: file streaming, the upload handshake, and the cron reset.
+- **One deployable, no separate API service.** The desk has 9 people. A single Next.js app with server actions keeps the request path short and leaves one thing to deploy, monitor and explain. The three route handlers exist only where a plain HTTP endpoint is needed: file streaming, the upload, and the cron reset.
 - **Business rules are pure functions.** `src/domain/` has no database, network or framework imports. The checklist engine, the lifecycle table, the deadline rules and the identity check run the same way in the claim file, the worklist, the packet cover, the submission gate and the tests. The UI never re-implements a rule.
 - **Drizzle instead of Prisma.** Drizzle has no generated client and no binary engine, runs on Neon's serverless driver, and keeps migrations as plain committed SQL (`drizzle/`). The schema needed `UNIQUE NULLS NOT DISTINCT` for the rule scopes, which Drizzle expresses directly.
+- **Files in Postgres, not an object store.** A claim file is a few hundred KB. Storing the bytes in a `document_files` table means a document and its record commit in one transaction, so an upload can never leave a file without a record or a record without a file. Deleting a claim removes its files with it. There is one place to back up, one access boundary and one residency decision. The cost is a 4 MB limit per file, set by Vercel's 4.5 MB request-body cap. The upload box shrinks large photos in the browser and rejects larger PDFs with a clear message. I first built this on Vercel Blob. The free plan suspended that store after 2,000 uploads, because my demo reset re-uploaded every sample file each time it ran, so I moved the files into the database.
 - **Own session auth instead of an auth framework.** Two roles, a password login and an 8-hour session do not need OAuth flows. The session is an HS256 JWT holding only the user ID. Each protected operation reloads the user and role from Postgres, so a role change takes effect at once.
 - **Transactional file uploads.** One authenticated multipart request saves the document, file bytes and upload audit row in one transaction. Files are limited to 4 MB, below Vercel's 4.5 MB request-body limit. Large phone photos are resized in the browser to at most 2000 pixels on the longest side and encoded as JPEG at 0.85 quality. Larger PDFs must be compressed before upload.
 
@@ -131,12 +134,12 @@ When the head changes a rule, the screen first shows how many open claims it aff
 **Close a gap and answer a query (desk executive).**
 
 1. The worklist opens with four counters: open pre-auths, queries due today, overdue queries and claims blocked by gaps. Each counter is a filter.
-2. CLM-3381 shows “Blocked: Ultrasound report missing” and “Next reply due · 3h overdue” above the timeline.
-3. The executive drops a scan onto the upload zone. Gemini identifies an ultrasound report and places it in the Ultrasound slot as “AI-sorted · 100% · needs confirmation”, with the model's reason one click away.
+2. CLM-3381 shows “Cannot submit yet: Ultrasound report is missing” and “Next reply due · 3h overdue” above the timeline.
+3. The executive drops a scan onto the upload zone. Gemini identifies an ultrasound report and places it in the Ultrasound slot as “Sorted by AI (99% sure) · needs confirmation”, with the model's reason one click away.
 4. One click on **Confirm** turns the slot green and the readiness sentence changes.
 5. In the query inbox, the AI summary lists what the TPA asked for and maps each requested document to the claim's slots. The original email is always shown below the summary. The executive drafts a reply from a template, sends it through the TPA's own channel, and clicks **Mark reply as sent**. When the last open query is answered, the claim returns to Pre-auth sent.
 
-![Claim file CLM-3381: blocker, overdue reply, timeline and gap view in the first screen](screenshots/claim-desktop.png)
+![Claim file CLM-3381: what is missing, the overdue reply, the timeline and the document checklist on the first screen](screenshots/claim-desktop.png)
 
 **Review pre-filled fields.** Each proposed field shows its value, the exact source snippet, the source document and the AI's confidence. Pending and conflicting fields come first, and confirmed fields collapse into one line. When two documents disagree (say, the age on the ID card and on the form), both values appear and the reviewer picks one. Clicking a source opens that document in the preview beside the field.
 
@@ -169,7 +172,7 @@ The client is `src/ai/gemini.ts` behind a two-method interface (`classifyAndExtr
 Patient records are sensitive personal data under the DPDP Act 2023. The demo implements these controls:
 
 - **Role-based access on the server.** Every server action and route handler calls `requireUser()` or `requireRole("HEAD")`. Hiding a button is cosmetic only. The settings pages return a real HTTP 403 to an executive, and the rule-changing actions reject them independently. Both are tested.
-- **Audit log.** Append-only rows record sign-in, failed sign-in, sign-out, claim creation, each status change, upload, each document view or download, field confirmation and edit, rule change, query logging and reply, packet download and demo reset. The head can filter the log at `/settings/audit`.
+- **Activity log (audit trail).** Append-only rows record sign-in, failed sign-in, sign-out, claim creation, each status change, upload, each document view or download, field confirmation and edit, rule change, query logging and reply, packet download and demo reset. The head can filter the log at `/settings/audit`.
 - **Private files.** File bytes live in Postgres and are saved atomically with their document metadata. The browser never receives a public URL or database credential. Every preview and download goes through `/api/documents/[id]/file`, which checks the session, writes an audit row and responds with `Cache-Control: private, no-store`.
 - **Sessions.** The cookie is httpOnly, `SameSite=Lax`, `Secure` in production, and expires after 8 hours. The upload endpoint also checks the `Origin` header. Failed sign-ins are rate-limited per account and per IP. Successful sign-ins never count, because reviewers share the demo accounts and often an office IP. That bug was found and fixed during production testing.
 - **Validation everywhere.** zod parses form input, API input, AI output and the session subject.
@@ -246,12 +249,14 @@ Cut on purpose, in order of what I would build next:
 
 ## 13. How this was built
 
-I used AI coding tools heavily. Claude Opus acted as lead and reviewer, and GPT-based coding agents implemented each phase from a written specification (`docs/SPEC.md`). Every phase was reviewed against its diff, its screenshots and its test output before it was accepted. Production testing, not the agents' reports, found the five most important fixes:
+I used AI coding tools heavily. Claude Opus acted as lead and reviewer, and GPT-based coding agents implemented each phase from a written specification (`docs/SPEC.md`). Every phase was reviewed against its diff, its screenshots and its test output before it was accepted. Production testing, not the agents' reports, found the most important fixes:
 
 - Models were running out of quota, so I added fallbacks and back-off.
 - Successful sign-ins were triggering the rate limit.
 - Upload replies could be lost on a dropped connection, so the page now refreshes after an error.
 - The demo data used fixed timestamps, which would have made everything look overdue on review day.
 - Documents for the wrong patient were accepted without warning.
+- The free file-storage quota ran out and suspended uploads and previews on the live site, so I moved the files into Postgres.
+- The screens were full of tags and technical words, so I rewrote the wording in plain language for non-technical desk staff.
 
 The commit history in the repository records each of these steps.

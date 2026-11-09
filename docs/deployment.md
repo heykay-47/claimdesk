@@ -1,6 +1,6 @@
 # Run ClaimDesk
 
-ClaimDesk includes the claims worklist and claim file, checklist review, private uploads, pre-auth field review, query inbox, head-only checklist management, and an audit log. Nothing is sent to a payer automatically.
+ClaimDesk includes the claims worklist and claim file, checklist review, private uploads, pre-auth field review, query inbox, head-only checklist management, and an activity log (the audit trail). Nothing is sent to a payer automatically.
 
 Live demo: <https://isocode-claims.vercel.app>. Repository: <https://github.com/heykay-47/claimdesk>.
 
@@ -59,7 +59,7 @@ Both demo accounts use `ClaimDesk@2026`.
 - `desk@claimdesk.demo` is Priya Kulkarni, an `EXECUTIVE`.
 - `head@claimdesk.demo` is Anil Joshi, the `HEAD`.
 
-The login page has buttons that fill these credentials. `/` redirects to `/claims`. The user menu shows the current name and role and contains Sign out. Only the head sees Checklist rules and Audit log in the navigation; the server checks the role independently.
+The login page has buttons that fill these credentials. `/` redirects to `/claims`. The user menu shows the current name and role and contains Sign out. Only the head sees Checklist rules and Activity log in the navigation; the server checks the role independently.
 
 ## Verify changes
 

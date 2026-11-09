@@ -42,7 +42,7 @@
 
   <rect class="box" x="560" y="98" width="300" height="90" rx="8"/>
   <text class="t" x="574" y="120">documents</text>
-  <text class="f" x="574" y="138">blob_pathname (private) · mime · size</text>
+  <text class="f" x="574" y="138">file bytes (document_files) · mime · size</text>
   <text class="f" x="574" y="154">document_type_id · ai type · confidence · reason</text>
   <text class="f" x="574" y="170">status (PROCESSING | NEEDS_REVIEW | CONFIRMED | FAILED)</text>
 
