@@ -4,6 +4,7 @@ import type { IdentityField } from "../domain/identity";
 import {
   bigint,
   check,
+  customType,
   date,
   index,
   integer,
@@ -232,6 +233,15 @@ export const documents = pgTable(
     ),
   ],
 );
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({
+  dataType: () => "bytea",
+});
+export const documentFiles = pgTable("document_files", {
+  documentId: uuid("document_id")
+    .primaryKey()
+    .references(() => documents.id, { onDelete: "cascade" }),
+  content: bytea("content").notNull(),
+});
 export const extractedFields = pgTable(
   "extracted_fields",
   {

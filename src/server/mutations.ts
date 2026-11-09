@@ -416,11 +416,10 @@ export async function retryDocument(input: unknown, client?: AiClient) {
     .where(eq(documents.id, documentId));
   if (!file || file.removedAt || file.status !== "FAILED")
     throw new InputError("Only documents the AI could not read can be tried again.");
-  const blob = await readDocument(file.blobPathname);
-  if (!blob || blob.statusCode !== 200)
+  const stored = await readDocument(file.id);
+  if (!stored)
     throw new InputError("The file is not available. Upload it again.");
-  const bytes = new Uint8Array(await new Response(blob.stream).arrayBuffer());
-  return processDocument(documentId, bytes, client);
+  return processDocument(documentId, stored.bytes, client);
 }
 export async function reviewField(input: unknown) {
   const user = await requireUser();

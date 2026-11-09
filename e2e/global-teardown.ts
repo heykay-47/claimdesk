@@ -1,5 +1,4 @@
-import { and, eq, inArray } from "drizzle-orm";
-import { del } from "@vercel/blob";
+import { eq, inArray } from "drizzle-orm";
 import { db } from "../src/db";
 import {
   claims,
@@ -9,22 +8,11 @@ import {
   queries,
 } from "../src/db/schema";
 import { resetDemo } from "../seed/run";
-import { seedId } from "../seed/data";
 
 export default async function teardown() {
   const runId = process.env.E2E_RUN_ID;
   if (!runId)
     throw new Error("Missing E2E run identifier. Refusing broad cleanup.");
-  const fileName = `E2E-${runId}-ultrasound.pdf`;
-  const ownedFiles = await db()
-    .select({ pathname: documents.blobPathname })
-    .from(documents)
-    .where(
-      and(
-        eq(documents.fileName, fileName),
-        eq(documents.claimId, seedId("claim:CLM-3381")),
-      ),
-    );
   const ownedClaims = await db()
     .select({ id: claims.id })
     .from(claims)
@@ -41,5 +29,4 @@ export default async function teardown() {
       await tx.delete(claims).where(inArray(claims.id, ids));
     });
   await resetDemo();
-  if (ownedFiles.length) await del(ownedFiles.map((file) => file.pathname));
 }

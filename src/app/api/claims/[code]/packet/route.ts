@@ -1,7 +1,4 @@
-import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
-import { db } from "@/db";
-import { documents } from "@/db/schema";
 import { requireUser, AuthenticationError } from "@/server/auth";
 import { claimFile } from "@/server/workspace";
 import { audit } from "@/server/audit";
@@ -52,25 +49,10 @@ export async function GET(
       throw new PacketError(
         "The packet exceeds 100 files or 50 MB. Download files individually.",
       );
-    const stored = confirmed.length
-      ? await db()
-          .select({ id: documents.id, pathname: documents.blobPathname })
-          .from(documents)
-          .where(
-            and(
-              eq(documents.claimId, file.claim.id),
-              inArray(
-                documents.id,
-                confirmed.map((document) => document.id),
-              ),
-            ),
-          )
-      : [];
     const attachments = [];
     for (const document of confirmed) {
-      const path = stored.find((entry) => entry.id === document.id)?.pathname;
-      const blob = path ? await readDocument(path) : null;
-      if (!blob || blob.statusCode !== 200)
+      const stored = await readDocument(document.id);
+      if (!stored)
         throw new PacketError(
           `File unavailable: ${document.fileName}. Try again or download the file individually.`,
         );
@@ -78,7 +60,7 @@ export async function GET(
         id: document.id,
         fileName: document.fileName,
         mimeType: document.mimeType,
-        bytes: new Uint8Array(await new Response(blob.stream).arrayBuffer()),
+        bytes: stored.bytes,
       });
     }
     const generatedAt = new Date();

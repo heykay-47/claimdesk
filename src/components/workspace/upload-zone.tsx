@@ -3,7 +3,58 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Upload } from "lucide-react";
 import { toast } from "sonner";
-import { put } from "@vercel/blob/client";
+import {
+  FILE_MIME_TYPES,
+  FILE_SIZE_ERROR,
+  MAX_FILE_BYTES,
+} from "@/domain/document-upload";
+
+async function compressImage(file: File) {
+  const image = await createImageBitmap(file);
+  try {
+    const scale = Math.min(1, 2000 / Math.max(image.width, image.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(image.width * scale));
+    canvas.height = Math.max(1, Math.round(image.height * scale));
+    const context = canvas.getContext("2d");
+    if (!context)
+      throw new Error("Could not resize this photo. Upload a smaller scan.");
+    context.fillStyle = "white";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise<Blob>((resolve, reject) =>
+      canvas.toBlob(
+        (result) =>
+          result
+            ? resolve(result)
+            : reject(new Error("Could not resize this photo. Upload a smaller scan.")),
+        "image/jpeg",
+        0.85,
+      ),
+    );
+    return new File([blob], file.name.replace(/\.[^.]+$/, "") + ".jpg", {
+      type: "image/jpeg",
+    });
+  } finally {
+    image.close();
+  }
+}
+
+function sendFile(body: FormData, update: (state: string) => void) {
+  return new Promise<Response>((resolve, reject) => {
+    const request = new XMLHttpRequest();
+    request.open("POST", "/api/documents/upload");
+    request.upload.onprogress = (event) => {
+      if (event.lengthComputable)
+        update(`Uploading · ${Math.round((event.loaded / event.total) * 100)}%`);
+    };
+    request.upload.onload = () => update("Uploaded. The AI is reading it…");
+    request.onload = () =>
+      resolve(new Response(request.responseText, { status: request.status }));
+    request.onerror = () => reject(new TypeError("The connection was lost."));
+    request.send(body);
+  });
+}
 export function UploadZone({ claimId }: { claimId: string }) {
   const input = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
@@ -25,51 +76,26 @@ export function UploadZone({ claimId }: { claimId: string }) {
         setProgress((all) =>
           all.map((row, i) => (i === index ? { ...row, state, error } : row)),
         );
-      if (
-        file.size === 0 ||
-        file.size > 10 * 1024 * 1024 ||
-        !["application/pdf", "image/png", "image/jpeg", "image/webp"].includes(
-          file.type,
-        )
-      ) {
-        update("Use PDF, JPG, PNG or WebP, up to 10 MB", true);
+      if (!FILE_MIME_TYPES.some((type) => type === file.type)) {
+        update("Use a PDF, JPG, PNG or WebP file.", true);
+        continue;
+      }
+      if (!file.size) {
+        update("This file is empty. Choose another file.", true);
         continue;
       }
       update("Getting ready to upload…");
-      const metadata = {
-        claimId,
-        fileName: file.name,
-        mimeType: file.type,
-        sizeBytes: file.size,
-      };
       try {
-        const permitResponse = await fetch("/api/documents/upload", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "prepare", data: metadata }),
-        });
-        const permit = await permitResponse.json();
-        if (!permitResponse.ok)
-          throw new Error(
-            permit.error ?? "Could not prepare upload. Try again.",
-          );
-        await put(permit.pathname, file, {
-          access: "private",
-          token: permit.token,
-          contentType: file.type,
-          multipart: file.size > 4 * 1024 * 1024,
-          onUploadProgress: ({ percentage }) =>
-            update(`Uploading · ${Math.round(percentage)}%`),
-        });
-        update("Uploaded. The AI is reading it…");
-        const response = await fetch("/api/documents/upload", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            action: "complete",
-            data: { ...metadata, uploadId: permit.uploadId },
-          }),
-        });
+        let prepared = file;
+        if (file.size > MAX_FILE_BYTES && file.type.startsWith("image/")) {
+          update("Resizing photo…");
+          prepared = await compressImage(file);
+        }
+        if (prepared.size > MAX_FILE_BYTES) throw new Error(FILE_SIZE_ERROR);
+        const body = new FormData();
+        body.set("claimId", claimId);
+        body.set("file", prepared);
+        const response = await sendFile(body, update);
         const result = await response.json();
         if (!response.ok)
           throw new Error(result.error ?? "Upload failed. Retry this file.");
@@ -134,7 +160,7 @@ export function UploadZone({ claimId }: { claimId: string }) {
           }
         />
       </label>
-      <small className="block mt-2">PDF, JPG, PNG or WebP. Up to 10 MB per file.</small>
+      <small className="block mt-2">PDF, JPG, PNG or WebP. Up to 4 MB per file. Large photos are resized before upload.</small>
       {progress.length > 0 && (
         <ul className="upload-progress" aria-live="polite">
           {progress.map((row, index) => (

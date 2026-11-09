@@ -20,8 +20,8 @@ export async function GET(
       .where(eq(documents.id, parsed.data));
     if (!document || document.removedAt)
       return new Response("Not found", { status: 404 });
-    const blob = await readDocument(document.blobPathname);
-    if (!blob || blob.statusCode !== 200)
+    const file = await readDocument(document.id);
+    if (!file)
       return new Response("File not found", { status: 404 });
     const download = new URL(request.url).searchParams.get("download") === "1";
     await audit({
@@ -30,7 +30,7 @@ export async function GET(
       entityType: "document",
       entityId: document.id,
     });
-    return new Response(blob.stream, {
+    return new Response(new Uint8Array(file.bytes), {
       headers: {
         "Content-Type": document.mimeType,
         "Content-Disposition": `${download ? "attachment" : "inline"}; filename*=UTF-8''${encodeURIComponent(document.fileName)}`,

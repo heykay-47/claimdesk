@@ -1,6 +1,5 @@
 import { hash } from "bcryptjs";
 import { asc, inArray, sql } from "drizzle-orm";
-import { put } from "@vercel/blob";
 import { syntheticPdf, seedReportDate } from "./pdf";
 import { db } from "../src/db";
 import {
@@ -11,6 +10,7 @@ import {
   checklistRules,
   claims,
   documents,
+  documentFiles,
   extractedFields,
   queries,
   claimEvents,
@@ -46,12 +46,6 @@ export async function resetDemo({
         const fileName = `${claim.code}-${key}.pdf`;
         const bytes = Buffer.from(await syntheticPdf(key, claim, now));
         files.set(fileName, bytes);
-        await put(`seed/v1/${claim.code}/${key}.pdf`, bytes, {
-          access: "private",
-          addRandomSuffix: false,
-          allowOverwrite: true,
-          contentType: "application/pdf",
-        });
       }),
     );
   }
@@ -309,14 +303,13 @@ export async function resetDemo({
       for (const key of claim.docs) {
         const fileName = `${claim.code}-${key}.pdf`;
         const bytes = files.get(fileName)!;
-        const pathname = `seed/v1/${claim.code}/${key}.pdf`;
         const id = seedId(`document:${claim.code}:${key}`);
         const stale = claim.code === "CLM-3385" && key === "PLATELET_COUNT";
         const documentDate = seedReportDate(claim, key, now);
         const doc = {
           id,
           claimId,
-          blobPathname: pathname,
+          blobPathname: `postgres/${id}`,
           fileName,
           mimeType: "application/pdf",
           sizeBytes: bytes.byteLength,
@@ -339,6 +332,13 @@ export async function resetDemo({
           .insert(documents)
           .values(doc)
           .onConflictDoUpdate({ target: documents.id, set: doc });
+        await database
+          .insert(documentFiles)
+          .values({ documentId: id, content: Buffer.from(bytes) })
+          .onConflictDoUpdate({
+            target: documentFiles.documentId,
+            set: { content: Buffer.from(bytes) },
+          });
         if (
           key === "PREAUTH_FORM" ||
           (claim.code === "CLM-3383" && key === "DOCTOR_NOTES")

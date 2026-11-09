@@ -1,36 +1,26 @@
 import "server-only";
-import { get, put } from "@vercel/blob";
-import { z } from "zod";
+import { eq } from "drizzle-orm";
+import { db } from "@/db";
+import { documentFiles, documents } from "@/db/schema";
 
-export const MAX_FILE_BYTES = 10 * 1024 * 1024;
-export const FILE_MIME_TYPES = [
-  "application/pdf",
-  "image/png",
-  "image/jpeg",
-  "image/webp",
-] as const;
-const uploadSchema = z.object({
-  claimId: z.uuid(),
-  fileName: z.string().min(1).max(200),
-  mimeType: z.enum(FILE_MIME_TYPES),
-});
-export async function putDocument(input: {
-  claimId: string;
-  fileName: string;
-  mimeType: string;
-  bytes: Uint8Array;
-}) {
-  const parsed = uploadSchema.parse(input);
-  if (input.bytes.byteLength === 0 || input.bytes.byteLength > MAX_FILE_BYTES)
-    throw new Error("The file must not be empty and must be no bigger than 10 MB.");
-  const safeName = parsed.fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
-  const blob = await put(
-    `claims/${parsed.claimId}/${safeName}`,
-    Buffer.from(input.bytes),
-    { access: "private", addRandomSuffix: true, contentType: parsed.mimeType },
-  );
-  return { pathname: blob.pathname, size: input.bytes.byteLength };
+type Transaction = Parameters<Parameters<ReturnType<typeof db>["transaction"]>[0]>[0];
+
+export async function putDocument(
+  tx: Transaction,
+  documentId: string,
+  bytes: Uint8Array,
+) {
+  await tx.insert(documentFiles).values({
+    documentId,
+    content: Buffer.from(bytes),
+  });
 }
-export async function readDocument(pathname: string) {
-  return get(pathname, { access: "private", useCache: false });
+
+export async function readDocument(documentId: string) {
+  const [file] = await db()
+    .select({ bytes: documentFiles.content, mimeType: documents.mimeType })
+    .from(documentFiles)
+    .innerJoin(documents, eq(documentFiles.documentId, documents.id))
+    .where(eq(documentFiles.documentId, documentId));
+  return file ?? null;
 }

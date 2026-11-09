@@ -4,11 +4,8 @@ import {
   AuthenticationError,
   AuthorizationError,
 } from "@/server/auth";
-import { z } from "zod";
-import {
-  prepareDirectUpload,
-  completeDirectUpload,
-} from "@/server/direct-upload";
+import { uploadDocument } from "@/server/upload";
+import { InputError } from "@/server/mutations";
 import { actionError } from "@/server/action-error";
 export const maxDuration = 60;
 export async function POST(request: Request) {
@@ -20,13 +17,10 @@ export async function POST(request: Request) {
         { error: "This request did not come from ClaimDesk. Reload the page and try again." },
         { status: 403 },
       );
-    const input = z
-      .object({ action: z.enum(["prepare", "complete"]), data: z.unknown() })
-      .parse(await request.json());
-    const result =
-      input.action === "prepare"
-        ? await prepareDirectUpload(input.data)
-        : await completeDirectUpload(input.data);
+    const input = await request.formData();
+    const file = input.get("file");
+    if (!(file instanceof File)) throw new InputError("Choose a file to upload.");
+    const result = await uploadDocument(input.get("claimId"), file);
     revalidatePath("/", "layout");
     return Response.json(result);
   } catch (error) {

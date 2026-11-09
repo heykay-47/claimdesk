@@ -22,26 +22,12 @@ vi.mock("@/server/auth", async (original) => {
   };
 });
 vi.mock("@/server/audit", () => ({ audit: state.audit }));
-vi.mock("@/db", () => ({
-  db: () => ({
-    select: () => ({
-      from: () => ({
-        where: async () => [{ id: "confirmed", pathname: "private/confirmed" }],
-      }),
-    }),
-  }),
-}));
 vi.mock("@/server/storage", () => ({
-  readDocument: async (path: string) => {
-    state.readIds.push(path);
+  readDocument: async (id: string) => {
+    state.readIds.push(id);
     return {
-      statusCode: 200,
-      stream: new ReadableStream({
-        start(controller) {
-          controller.enqueue(state.pdf);
-          controller.close();
-        },
-      }),
+      bytes: state.pdf,
+      mimeType: "application/pdf",
     };
   },
 }));
@@ -228,7 +214,7 @@ describe("claim packet PDF", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("Content-Type")).toBe("application/pdf");
     expect(response.headers.get("Cache-Control")).toContain("no-store");
-    expect(state.readIds).toEqual(["private/confirmed"]);
+    expect(state.readIds).toEqual(["confirmed"]);
     expect(
       (await PDFDocument.load(await response.arrayBuffer())).getPageCount(),
     ).toBe(2);
@@ -251,7 +237,7 @@ describe("claim packet PDF", () => {
         params: Promise.resolve({ code: "CLM-3381" }),
       });
       expect(response.status).toBe(200);
-      expect(state.readIds).toEqual(["private/confirmed"]);
+      expect(state.readIds).toEqual(["confirmed"]);
       expect(
         (await PDFDocument.load(await response.arrayBuffer())).getPageCount(),
       ).toBe(2);

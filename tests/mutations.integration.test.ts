@@ -28,32 +28,9 @@ vi.mock("next/headers", () => ({
 }));
 vi.mock("@/db", () => ({ db: () => state.database }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
-vi.mock("@/server/storage", async (original) => {
-  const actual = await original<typeof import("../src/server/storage")>();
-  return {
-    ...actual,
-    readDocument: async () => ({
-      statusCode: 200,
-      blob: { contentType: "application/pdf", size: 20 },
-      stream: new ReadableStream({
-        start(controller) {
-          controller.enqueue(new Uint8Array(20));
-          controller.close();
-        },
-      }),
-    }),
-  };
-});
-vi.mock("@vercel/blob/client", () => ({
-  generateClientTokenFromReadWriteToken: vi.fn(
-    async () => "test-scoped-upload-token",
-  ),
-}));
-import { generateClientTokenFromReadWriteToken } from "@vercel/blob/client";
-import {
-  prepareDirectUpload,
-  completeDirectUpload,
-} from "../src/server/direct-upload";
+import { uploadDocument } from "../src/server/upload";
+import { POST as postUpload } from "../src/app/api/documents/upload/route";
+import { FILE_SIZE_ERROR, MAX_FILE_BYTES } from "../src/domain/document-upload";
 import {
   createClaim,
   transitionClaim,
@@ -103,14 +80,11 @@ const wrongPatient = new FakeAiClient({
   ],
 });
 async function upload(ai = ultrasound) {
-  const metadata = {
+  return uploadDocument(
     claimId,
-    fileName: "ultrasound.pdf",
-    mimeType: "application/pdf",
-    sizeBytes: 20,
-  };
-  const permit = await prepareDirectUpload(metadata);
-  return completeDirectUpload({ ...metadata, uploadId: permit.uploadId }, ai);
+    new File([new Uint8Array(20)], "ultrasound.pdf", { type: "application/pdf" }),
+    ai,
+  );
 }
 describe("audited workspace mutations against real Postgres", () => {
   beforeAll(async () => {
@@ -140,6 +114,9 @@ describe("audited workspace mutations against real Postgres", () => {
           [JSON.stringify(rows)],
         );
     }
+    await client.query(
+      `INSERT INTO "${schemaName}".document_files SELECT * FROM public.document_files`,
+    );
     database = drizzle(client, { schema });
     state.database = new Proxy(database, {
       get(target, property) {
@@ -746,64 +723,100 @@ describe("audited workspace mutations against real Postgres", () => {
       await client.query("ROLLBACK TO SAVEPOINT deduction_guard");
     }
   });
-  it("scopes private upload tokens to the exact file, type, size and a five-minute lifetime", async () => {
-    const metadata = {
+  it("round trips stored bytes through the authenticated file route and audits the view and download", async () => {
+    const bytes = new Uint8Array([0, 1, 127, 128, 255, 10, 13]);
+    const result = await uploadDocument(
       claimId,
-      fileName: "ultrasound.pdf",
-      mimeType: "application/pdf",
-      sizeBytes: 20,
-    };
-    const permit = await prepareDirectUpload(metadata);
-    expect(generateClientTokenFromReadWriteToken).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        pathname: permit.pathname,
-        allowedContentTypes: ["application/pdf"],
-        maximumSizeInBytes: 20,
-        addRandomSuffix: false,
-        allowOverwrite: false,
-      }),
-    );
-    expect(permit.pathname).toContain(seedId("user:desk"));
-    await expect(
-      prepareDirectUpload({ ...metadata, sizeBytes: 10 * 1024 * 1024 + 1 }),
-    ).rejects.toThrow();
-    state.token = await signSession(seedId("user:head"));
-    await expect(
-      completeDirectUpload(
-        { ...metadata, uploadId: permit.uploadId },
-        ultrasound,
-      ),
-    ).rejects.toBeInstanceOf(InputError);
-  });
-  it("finalising the same private upload twice does not duplicate documents or AI fields", async () => {
-    const metadata = {
-      claimId,
-      fileName: "ultrasound.pdf",
-      mimeType: "application/pdf",
-      sizeBytes: 20,
-    };
-    const permit = await prepareDirectUpload(metadata);
-    await completeDirectUpload(
-      { ...metadata, uploadId: permit.uploadId },
+      new File([bytes], "roundtrip.pdf", { type: "application/pdf" }),
       ultrasound,
     );
-    await completeDirectUpload(
-      { ...metadata, uploadId: permit.uploadId },
-      ultrasound,
-    );
-    expect(
-      await database
-        .select()
-        .from(schema.documents)
-        .where(eq(schema.documents.id, permit.uploadId)),
-    ).toHaveLength(1);
+    for (const download of [false, true]) {
+      const response = await documentFile(
+        new Request(`https://example.test/api/documents/${result.id}/file${download ? "?download=1" : ""}`),
+        { params: Promise.resolve({ id: result.id }) },
+      );
+      expect(response.status).toBe(200);
+      expect(response.headers.get("Cache-Control")).toBe("private, no-store");
+      expect(response.headers.get("Content-Type")).toBe("application/pdf");
+      expect(new Uint8Array(await response.arrayBuffer())).toEqual(bytes);
+    }
     const audits = await database
       .select()
       .from(schema.auditLogs)
-      .where(eq(schema.auditLogs.entityId, permit.uploadId));
-    expect(audits.filter((a) => a.action === "DOCUMENT_UPLOAD")).toHaveLength(
-      1,
+      .where(eq(schema.auditLogs.entityId, result.id));
+    expect(audits.map((row) => row.action)).toEqual(
+      expect.arrayContaining(["DOCUMENT_VIEW", "DOCUMENT_DOWNLOAD"]),
     );
-    expect(audits.filter((a) => a.action === "DOCUMENT_AI")).toHaveLength(1);
+    state.token = undefined;
+    const denied = await documentFile(new Request("https://example.test"), {
+      params: Promise.resolve({ id: result.id }),
+    });
+    expect(denied.status).toBe(401);
+  });
+  it("rejects files over 4 MB and wrong MIME at the multipart boundary with clear messages", async () => {
+    for (const [file, message] of [
+      [
+        new File([new Uint8Array(MAX_FILE_BYTES + 1)], "large.pdf", { type: "application/pdf" }),
+        FILE_SIZE_ERROR,
+      ],
+      [
+        new File(["text"], "note.txt", { type: "text/plain" }),
+        "Use a PDF, JPG, PNG or WebP file.",
+      ],
+    ] as const) {
+      const body = new FormData();
+      body.set("claimId", claimId);
+      body.set("file", file);
+      const response = await postUpload(
+        new Request("https://example.test/api/documents/upload", {
+          method: "POST",
+          headers: { origin: "https://example.test", host: "example.test" },
+          body,
+        }),
+      );
+      expect(response.status).toBe(400);
+      expect(await response.json()).toEqual({ error: message });
+    }
+  });
+  it("rejects cross-origin and unauthenticated uploads before storing files", async () => {
+    const request = () => new Request("https://example.test/api/documents/upload", {
+      method: "POST",
+      headers: { origin: "https://other.test", host: "example.test" },
+    });
+    expect((await postUpload(request())).status).toBe(403);
+    state.token = undefined;
+    expect((await postUpload(request())).status).toBe(401);
+  });
+  it("rolls back document and bytes together if the upload audit cannot be written", async () => {
+    const beforeDocs = await database
+      .select({ id: schema.documents.id }).from(schema.documents);
+    const beforeFiles = await database
+      .select({ id: schema.documentFiles.documentId }).from(schema.documentFiles);
+    await client.query(`CREATE FUNCTION fail_upload_audit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'upload audit unavailable'; END $$`);
+    await client.query(`CREATE TRIGGER fail_upload_audit BEFORE INSERT ON audit_logs FOR EACH ROW WHEN (NEW.action = 'DOCUMENT_UPLOAD') EXECUTE FUNCTION fail_upload_audit()`);
+    await expect(upload()).rejects.toThrow();
+    expect(
+      await database.select({ id: schema.documents.id }).from(schema.documents),
+    ).toHaveLength(beforeDocs.length);
+    expect(
+      await database.select({ id: schema.documentFiles.documentId }).from(schema.documentFiles),
+    ).toHaveLength(beforeFiles.length);
+  });
+  it("cascades stored bytes when the document is deleted and forbids orphan file rows", async () => {
+    const result = await upload();
+    const stored = () => database.select().from(schema.documentFiles)
+      .where(eq(schema.documentFiles.documentId, result.id));
+    expect(await stored()).toHaveLength(1);
+    await database.delete(schema.documents).where(eq(schema.documents.id, result.id));
+    expect(await stored()).toHaveLength(0);
+    await client.query("SAVEPOINT orphan_guard");
+    try {
+      await expect(client.query(
+        "INSERT INTO document_files(document_id, content) VALUES ($1, $2)",
+        [randomUUID(), Buffer.from([1])],
+      )).rejects.toMatchObject({ code: "23503" });
+    } finally {
+      await client.query("ROLLBACK TO SAVEPOINT orphan_guard");
+    }
   });
 });
