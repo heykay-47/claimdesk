@@ -38,17 +38,30 @@ Secret values are not in the repository. Set each variable for Production and Pr
 | Desk executive (`EXECUTIVE`) | `desk@claimdesk.demo` | `ClaimDesk@2026` |
 | Desk head (`HEAD`) | `head@claimdesk.demo` | `ClaimDesk@2026` |
 
-## Configure local services
+## Run it locally
 
-Use Node.js 24 and the pinned pnpm version in `package.json`.
+You need Node.js 24, pnpm (the version in `package.json`), a Postgres database and a Gemini API key. The app itself needs nothing else: uploaded files are stored in Postgres.
 
-1. Create `.env.local` with `DATABASE_URL`, `DATABASE_URL_UNPOOLED`, `GEMINI_API_KEY`, `GEMINI_MODEL`, and `SESSION_SECRET`. Optionally set `GEMINI_FALLBACK_MODELS` to a comma-separated list of permitted fallback models.
-2. Set a random session secret of at least 32 characters.
-3. Run `pnpm install --frozen-lockfile`.
-4. Run `pnpm db:migrate`.
-5. Run `pnpm seed:files` if you change the fixture generator. The generated files are committed.
-6. Run `pnpm db:seed`.
-7. Run `pnpm dev --port 3001`.
+1. Get a Postgres database. A free [Neon](https://neon.new) project works. Copy its pooled connection string and its direct (unpooled) connection string.
+2. Get a Gemini API key from [Google AI Studio](https://aistudio.google.com/apikey).
+3. Create a file named `.env.local` in the project root with these names. Replace each value:
+
+   ```sh
+   DATABASE_URL="postgresql://…pooled…"
+   DATABASE_URL_UNPOOLED="postgresql://…direct…"
+   SESSION_SECRET="a random string of at least 32 characters"
+   GEMINI_API_KEY="your key"
+   GEMINI_MODEL="gemini-3.5-flash"
+   GEMINI_FALLBACK_MODELS="gemini-2.5-flash,gemini-3.8-flash"
+   ```
+
+   `GEMINI_MODEL` and `GEMINI_FALLBACK_MODELS` are optional. You can generate a session secret with `openssl rand -base64 48`.
+4. Install the dependencies: `pnpm install --frozen-lockfile`.
+5. Create the tables: `pnpm db:migrate`.
+6. Load the fictional sample data: `pnpm db:seed`.
+7. Start the app: `pnpm dev`, then open <http://localhost:3000> and sign in with a demo account above.
+
+To check the setup, upload `seed/files/CLM-3381-ULTRASOUND_REPORT.pdf` to claim CLM-3381 and confirm that the AI places it in the ultrasound slot.
 
 The seed restores its deterministic sample claims, documents, file bytes, fields, queries and timeline, plus all checklist rules. Admission times, report dates and query deadlines are relative to the seed run. Independently created claims and append-only audit rows are kept. Files are generated in memory and written inside the reset transaction. Do not use this seed against real patient data.
 
@@ -61,7 +74,7 @@ Both demo accounts use `ClaimDesk@2026`.
 
 The login page has buttons that fill these credentials. `/` redirects to `/claims`. The user menu shows the current name and role and contains Sign out. Only the head sees Checklist rules and Activity log in the navigation; the server checks the role independently.
 
-## Verify changes
+## Verify changes (for maintainers)
 
 On a claim file, Download packet builds the claim's current-stage PDF. The cover lists readiness blockers, effective checklist states, confirmed pre-auth fields, preparation time and person. Confirmed files follow in checklist order, then other confirmed files. Incomplete packets remain available with a warning. Downloads require a session, disable caching and write `PACKET_DOWNLOAD` audit rows. Unreadable files fail the export rather than disappearing from it. Exports are limited to 100 files, 50 MB of inputs and 300 pages. No packet is sent to a payer.
 
