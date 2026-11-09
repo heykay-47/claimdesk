@@ -6,6 +6,7 @@ import { auditLogs, users } from "@/db/schema";
 import { requireUser } from "@/server/auth";
 import { forbidden } from "next/navigation";
 import { formatIST } from "@/domain/format";
+import { auditActionLabel, auditEntityLabel } from "@/domain/audit-labels";
 import { PageTitle, EmptyState } from "@/components/workspace/primitives";
 import { ActionButton } from "@/components/workspace/action-form";
 export default async function AuditPage({
@@ -51,19 +52,19 @@ export default async function AuditPage({
   return (
     <>
       <PageTitle
-        title="Audit log"
-        description="An append-only record of access, decisions and changes."
+        title="Activity log"
+        description="A permanent record of who viewed, changed or recorded something. Entries cannot be edited or deleted."
       />
       <div className="panel p-4 mb-5 flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm muted">
-          Fictional demo data resets daily around 03:00 IST. Audit history is
-          kept.
+          The demo data is fictional. It resets every day around 3:00 am IST.
+          The activity log is kept.
         </p>
         <ActionButton
           action="resetDemo"
           values={{ confirmedReset: true }}
-          success="Demo restored with fresh deadlines"
-          confirm="Restore the sample claims and all checklist rules? Changes to sample documents, reviews and queries will be removed. Independently created claims and audit history are kept."
+          success="Demo data restored. Deadlines are fresh."
+          confirm="Restore the sample claims and all checklist rules to how they started? Changes you made to the sample documents, reviews and queries will be lost. Claims you created yourself and the activity log are kept."
         >
           Reset demo data
         </ActionButton>
@@ -71,18 +72,20 @@ export default async function AuditPage({
       <form action="/settings/audit" className="filter-bar">
         <select
           className="control"
-          aria-label="Filter audit action"
+          aria-label="Filter by action"
           name="action"
           defaultValue={params.action ?? ""}
         >
           <option value="">All actions</option>
           {actions.map(({ action }) => (
-            <option key={action}>{action}</option>
+            <option key={action} value={action}>
+              {auditActionLabel(action)}
+            </option>
           ))}
         </select>
         <select
           className="control"
-          aria-label="Filter audit actor"
+          aria-label="Filter by person"
           name="actor"
           defaultValue={params.actor ?? ""}
         >
@@ -107,7 +110,7 @@ export default async function AuditPage({
           <table className="data-table">
             <thead>
               <tr>
-                {["Time (IST)", "Person", "Action", "Record", "Details"].map(
+                {["Time (IST)", "Person", "Action", "About", "Details"].map(
                   (h) => (
                     <th key={h}>{h}</th>
                   ),
@@ -124,13 +127,11 @@ export default async function AuditPage({
                     {actor ??
                       (log.entityType === "system"
                         ? "System"
-                        : "Unauthenticated")}
+                        : "Not signed in")}
                   </td>
-                  <td className="text-xs">
-                    {log.action.replaceAll("_", " ").toLowerCase()}
-                  </td>
+                  <td className="text-xs">{auditActionLabel(log.action)}</td>
                   <td>
-                    <span>{log.entityType.replaceAll("_", " ")}</span>
+                    <span>{auditEntityLabel(log.entityType)}</span>
                     <span className="sub mono" title={log.entityId ?? ""}>
                       {log.entityId?.slice(0, 8)}
                     </span>
@@ -138,13 +139,13 @@ export default async function AuditPage({
                   <td>
                     {Object.keys(log.detail).length > 0 ? (
                       <details>
-                        <summary className="text-link">View detail</summary>
+                        <summary className="text-link">Show details</summary>
                         <pre className="text-xs whitespace-pre-wrap break-all max-w-72 mt-2">
                           {JSON.stringify(log.detail, null, 2)}
                         </pre>
                       </details>
                     ) : (
-                      <span className="muted">No extra detail</span>
+                      <span className="muted">No more details</span>
                     )}
                   </td>
                 </tr>
@@ -154,12 +155,12 @@ export default async function AuditPage({
         ) : (
           <EmptyState
             title="No matching activity"
-            description="Choose a different action or person to see the audit trail."
+            description="Choose a different action or person to see more activity."
           />
         )}
         <div className="table-footer flex items-center justify-between">
           <span>
-            {total.count} records · Page {params.page} of {pages}
+            {total.count} entries · Page {params.page} of {pages}
           </span>
           <div className="button-row">
             {params.page > 1 && (

@@ -22,7 +22,7 @@ export async function putDocument(input: {
 }) {
   const parsed = uploadSchema.parse(input);
   if (input.bytes.byteLength === 0 || input.bytes.byteLength > MAX_FILE_BYTES)
-    throw new Error("File must be between 1 byte and 10 MB");
+    throw new Error("The file must not be empty and must be no bigger than 10 MB.");
   const safeName = parsed.fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
   const blob = await put(
     `claims/${parsed.claimId}/${safeName}`,

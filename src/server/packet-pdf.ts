@@ -23,6 +23,23 @@ export type PacketAttachment = {
   bytes: Uint8Array;
 };
 export class PacketError extends Error {}
+const REQUIREMENT_TEXT: Record<string, string> = {
+  REQUIRED: "Required",
+  OPTIONAL: "Optional",
+  WAIVED: "Not needed",
+};
+const STATE_TEXT: Record<string, string> = {
+  SATISFIED: "In order",
+  MISSING: "Missing",
+  STALE: "Too old",
+  UNVERIFIED: "Needs confirmation",
+  WAIVED: "Not needed",
+};
+const STAGE_TEXT: Record<string, string> = {
+  PREAUTH: "Pre-auth",
+  ENHANCEMENT: "Enhancement",
+  DISCHARGE: "Discharge",
+};
 
 export async function buildPacket(
   cover: PacketCover,
@@ -53,7 +70,7 @@ export async function buildPacket(
       color: rgb(0.08, 0.3, 0.29),
     });
     page.drawText(
-      `${cover.code} | ${cover.stage}${first ? "" : " | continued"}`,
+      `${cover.code} | ${STAGE_TEXT[cover.stage] ?? cover.stage}${first ? "" : " | continued"}`,
       { x: 44, y: 773, size: 9, font },
     );
     page.drawLine({
@@ -69,7 +86,7 @@ export async function buildPacket(
       color: rgb(0.62, 0.15, 0.15),
     });
     page.drawText(
-      "Prepared for manual review. Nothing has been sent to a payer.",
+      "Prepared for a person to review. Nothing has been sent to an insurer or TPA.",
       { x: 44, y: 32, size: 8, font },
     );
     y = 732;
@@ -107,26 +124,32 @@ export async function buildPacket(
   newCoverPage(true);
   if (cover.blockers.length) {
     write(
-      `INCOMPLETE PACKET | ${cover.blockers.length} unresolved ${cover.blockers.length === 1 ? "blocker" : "blockers"}`,
+      `INCOMPLETE PACKET | ${cover.blockers.length} ${cover.blockers.length === 1 ? "item" : "items"} to fix`,
       true,
       true,
     );
     cover.blockers.forEach((blocker) => write(`- ${blocker}`, false, true));
-    write("Do not treat this export as clearance to submit.", false, true);
-  } else write("CHECKLIST READY | Human review still required", true);
+    write(
+      "Do not send this packet to the insurer or TPA until these items are fixed.",
+      false,
+      true,
+    );
+  } else write("CHECKLIST COMPLETE | A person must still review it", true);
   write(`Patient: ${cover.patient}`);
-  write(`Payer: ${cover.payer} | Policy: ${cover.policy}`);
+  write(`Insurer or TPA: ${cover.payer} | Policy: ${cover.policy}`);
   write(`Procedure: ${cover.procedure}`);
   write(`Prepared by: ${cover.preparedBy}`);
   write(`Generated: ${formatIST(cover.generatedAt)} IST`);
   write("Document checklist", true);
   cover.checklist.forEach((slot) =>
-    write(`${slot.label} | ${slot.requirement} | ${slot.state}`),
+    write(
+      `${slot.label} | ${REQUIREMENT_TEXT[slot.requirement] ?? slot.requirement} | ${STATE_TEXT[slot.state] ?? slot.state}`,
+    ),
   );
-  write("Confirmed pre-auth fields", true);
+  write("Confirmed pre-auth details", true);
   if (!cover.fields.length)
     write(
-      "No confirmed pre-auth fields. Unconfirmed suggestions are excluded.",
+      "No pre-auth details have been confirmed yet. Details that are not confirmed are left out.",
     );
   cover.fields.forEach((field) => write(`${field.label}: ${field.value}`));
   write(`Included confirmed documents (${files.length})`, true);

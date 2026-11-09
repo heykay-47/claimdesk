@@ -9,14 +9,14 @@ test.beforeEach(async ({ page }) => login(page));
 test("executive filters to gaps, uploads and confirms the missing ultrasound", async ({
   page,
 }) => {
-  await page.getByRole("link", { name: /Claims blocked by gaps/ }).click();
+  await page.getByRole("link", { name: /Claims not ready to submit/ }).click();
   await expect(page).toHaveURL(/view=gaps/);
   await expect(
-    page.getByRole("link", { name: /Claims blocked by gaps/ }),
+    page.getByRole("link", { name: /Claims not ready to submit/ }),
   ).toHaveAttribute("aria-current", "page");
   await page.getByRole("link", { name: "CLM-3381", exact: true }).click();
   await expect(
-    page.getByText("Blocked: Ultrasound report missing", { exact: true }),
+    page.getByText("Cannot submit yet: Ultrasound report is missing", { exact: true }),
   ).toBeVisible();
   await page.getByLabel("Upload documents", { exact: true }).setInputFiles({
     name: `E2E-${process.env.E2E_RUN_ID}-ultrasound.pdf`,
@@ -81,7 +81,7 @@ test("settings return 403 to executives and rule actions independently enforce t
   ).toBeVisible();
   await page.goto("/claims/CLM-3385");
   await expect(
-    page.getByText("Blocked: Platelet count is stale", { exact: true }),
+    page.getByText("Cannot submit yet: Platelet count is too old", { exact: true }),
   ).toBeVisible();
   const context = await browser.newContext({ baseURL });
   try {
@@ -140,7 +140,7 @@ test("settings return 403 to executives and rule actions independently enforce t
     );
     await page.reload();
     await expect(
-      page.getByText("Blocked: Platelet count is stale", { exact: true }),
+      page.getByText("Cannot submit yet: Platelet count is too old", { exact: true }),
     ).toBeVisible();
   } finally {
     await context.close();
@@ -222,7 +222,7 @@ test("packet downloads are authenticated PDFs and insights are available to exec
   expect(await download.failure()).toBeNull();
   await page.getByRole("link", { name: "Insights", exact: true }).click();
   await expect(
-    page.getByRole("heading", { name: "Pending payer decisions", exact: true }),
+    page.getByRole("heading", { name: "Waiting for insurer decisions", exact: true }),
   ).toBeVisible();
   await expect(
     page.getByRole("heading", { name: "Deductions by reason", exact: true }),

@@ -35,7 +35,7 @@ export function UploadZone({ claimId }: { claimId: string }) {
         update("Use PDF, JPG, PNG or WebP, up to 10 MB", true);
         continue;
       }
-      update("Preparing private upload…");
+      update("Getting ready to upload…");
       const metadata = {
         claimId,
         fileName: file.name,
@@ -59,9 +59,9 @@ export function UploadZone({ claimId }: { claimId: string }) {
           contentType: file.type,
           multipart: file.size > 4 * 1024 * 1024,
           onUploadProgress: ({ percentage }) =>
-            update(`Uploading privately · ${Math.round(percentage)}%`),
+            update(`Uploading · ${Math.round(percentage)}%`),
         });
-        update("Uploaded · AI sorting…");
+        update("Uploaded. The AI is reading it…");
         const response = await fetch("/api/documents/upload", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -75,19 +75,21 @@ export function UploadZone({ claimId }: { claimId: string }) {
           throw new Error(result.error ?? "Upload failed. Retry this file.");
         if (result.status === "FAILED") {
           update(
-            "Saved to unsorted · AI failed. Retry or sort manually.",
+            "Saved, but the AI could not read it. Try AI again or sort it yourself.",
             true,
           );
-          toast.warning("File saved. AI could not sort it.");
+          toast.warning("File saved. The AI could not read it.");
         } else {
           update("AI sorted · needs confirmation");
-          toast.success("Document uploaded. Review the suggested slot.");
+          toast.success(
+            "Document uploaded. Check what the AI suggests, then confirm.",
+          );
         }
         router.refresh();
       } catch (error) {
         update(
           error instanceof TypeError
-            ? "Connection dropped. Check the checklist before retrying."
+            ? "The connection was lost. The file may already be saved. Check the checklist before you try again."
             : error instanceof Error
               ? error.message
               : "Upload failed. Please retry.",
@@ -117,7 +119,7 @@ export function UploadZone({ claimId }: { claimId: string }) {
     >
       <Upload size={20} strokeWidth={1.5} className="mx-auto muted" />
       <p>Drop documents here</p>
-      <small>AI suggests a slot. You make the final call.</small>
+      <small>AI suggests what each file is. You check and confirm it.</small>
       <label className="block">
         <span className="sr-only">Upload documents</span>
         <input
@@ -132,7 +134,7 @@ export function UploadZone({ claimId }: { claimId: string }) {
           }
         />
       </label>
-      <small className="block mt-2">PDF, JPG, PNG, WebP · 10 MB per file</small>
+      <small className="block mt-2">PDF, JPG, PNG or WebP. Up to 10 MB per file.</small>
       {progress.length > 0 && (
         <ul className="upload-progress" aria-live="polite">
           {progress.map((row, index) => (

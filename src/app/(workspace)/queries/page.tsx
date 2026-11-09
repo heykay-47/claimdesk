@@ -17,10 +17,7 @@ export default async function QueriesPage({
   const rows = await queryInbox(status);
   return (
     <>
-      <PageTitle
-        title="Query inbox"
-        description="Know what the payer needs, and when they need it."
-      >
+      <PageTitle title="Query inbox">
         <Link className="btn primary" href="/queries/new">
           <Plus size={15} />
           Log incoming query
@@ -42,7 +39,7 @@ export default async function QueriesPage({
           </Link>
         </nav>
         <span className="muted text-xs">
-          {rows.length} {status.toLowerCase()} · Soonest due first
+          {rows.length} {status.toLowerCase()} · Earliest deadline first
         </span>
       </div>
       <div className="panel table-wrap">
@@ -53,9 +50,9 @@ export default async function QueriesPage({
                 {[
                   "Query",
                   "Claim / patient",
-                  "Payer",
+                  "Insurer or TPA",
                   "Received",
-                  status === "OPEN" ? "Reply due" : "Reply recorded",
+                  status === "OPEN" ? "Reply due" : "Reply sent",
                 ].map((label) => (
                   <th key={label}>{label}</th>
                 ))}
@@ -103,15 +100,16 @@ export default async function QueriesPage({
             }
             description={
               status === "OPEN"
-                ? "New payer requests will appear here when you log an incoming email."
-                : "Replies recorded as sent will stay here for future reference."
+                ? "When an insurer or TPA emails you a query, log it here to track the reply deadline."
+                : "Replies you mark as sent will be listed here."
             }
           />
         )}
       </div>
       <p className="muted text-xs mt-4">
-        ClaimDesk records correspondence. Replies are sent separately through
-        the payer’s channel.
+        A query is a request for more information from an insurer or TPA.
+        ClaimDesk does not send or receive emails. You send each reply
+        yourself, then record it here.
       </p>
     </>
   );

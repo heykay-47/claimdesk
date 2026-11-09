@@ -16,13 +16,33 @@ import { DEDUCTION_REASONS, DEDUCTION_LABELS } from "@/domain/settlement";
 export const ACTION_LABELS: Record<ClaimAction, string> = {
   submit_preauth: "Mark pre-auth sent",
   record_query: "Log incoming query",
-  answer_query: "Return to pre-auth",
+  answer_query: "Move back to Pre-auth sent",
   record_approval: "Record approval",
   request_enhancement: "Request enhancement",
   submit_enhancement: "Mark enhancement sent",
   submit_final_bill: "Mark final bill sent",
   record_settlement: "Record settlement",
   record_rejection: "Record rejection",
+};
+const ACTION_HELP: Record<ClaimAction, string> = {
+  submit_preauth:
+    "Choose Confirm change only after you have sent the pre-auth packet to the insurer or TPA yourself. ClaimDesk does not send anything.",
+  record_query:
+    "Log the query from the insurer or TPA in the query inbox instead.",
+  answer_query:
+    "This moves the claim back to Pre-auth sent. It works only when every open query has been answered.",
+  record_approval:
+    "Record that the insurer or TPA approved the pre-auth. Enter the amount they approved.",
+  request_enhancement:
+    "Use this when the treatment needs more approval from the insurer or TPA, for example a higher amount. Next, prepare the enhancement documents.",
+  submit_enhancement:
+    "Choose Confirm change only after you have sent the enhancement request to the insurer or TPA yourself. ClaimDesk does not send anything.",
+  submit_final_bill:
+    "Choose Confirm change only after you have sent the final bill and discharge documents to the insurer or TPA yourself. ClaimDesk does not send anything.",
+  record_settlement:
+    "Record that the insurer or TPA has paid the claim. Enter the amount paid. You can also record a deduction.",
+  record_rejection:
+    "Record that the insurer or TPA rejected this claim. The claim will be closed and cannot be moved to another step.",
 };
 export function TransitionControls({ file }: { file: ClaimFile }) {
   const dialog = useRef<HTMLDialogElement>(null);
@@ -76,7 +96,7 @@ export function TransitionControls({ file }: { file: ClaimFile }) {
                 !allowed
                   ? option.gate === "QUERIES_ANSWERED"
                     ? "Answer every open query in the inbox first"
-                    : "Resolve checklist gaps before submission"
+                    : "Fix the items listed below first"
                   : undefined
               }
               onClick={() => {
@@ -107,7 +127,7 @@ export function TransitionControls({ file }: { file: ClaimFile }) {
               className="text-link"
               href={`/claims/${file.claim.code}/preauth`}
             >
-              Review all {blockers.length} items
+              See all {blockers.length} items
             </Link>
           )}
         </details>
@@ -118,7 +138,7 @@ export function TransitionControls({ file }: { file: ClaimFile }) {
           {openQueries.length === 1
             ? "the open query"
             : `all ${openQueries.length} open queries`}{" "}
-          to return to pre-auth sent.
+          to move the claim back to Pre-auth sent.
         </p>
       )}
       <dialog
@@ -133,9 +153,8 @@ export function TransitionControls({ file }: { file: ClaimFile }) {
       >
         <h2>{action && ACTION_LABELS[action]}</h2>
         <p className="muted text-sm">
-          {action?.startsWith("submit")
-            ? "Only record this after sending the completed packet through the payer’s channel. Nothing is sent from ClaimDesk."
-            : "This change will be added to the claim timeline and audit log."}
+          {action && ACTION_HELP[action]} This change is added to the
+          claim&apos;s activity history and to the activity log.
         </p>
         <form
           onSubmit={(event) => {
@@ -196,7 +215,7 @@ export function TransitionControls({ file }: { file: ClaimFile }) {
                     checked={hasDeduction}
                     onChange={(event) => setHasDeduction(event.target.checked)}
                   />
-                  Record a deduction
+                  Record a deduction (an amount the insurer or TPA did not pay)
                 </label>
                 {hasDeduction && (
                   <>

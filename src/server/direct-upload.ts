@@ -73,11 +73,11 @@ export async function completeDirectUpload(input: unknown, client?: AiClient) {
     blob.blob.contentType !== data.mimeType
   )
     throw new InputError(
-      "Uploaded file did not match its permission. Choose the file again.",
+      "The uploaded file did not match the one you chose. Choose the file again.",
     );
   const bytes = new Uint8Array(await new Response(blob.stream).arrayBuffer());
   if (bytes.byteLength !== data.sizeBytes || bytes.byteLength > MAX_FILE_BYTES)
-    throw new InputError("Uploaded file size does not match");
+    throw new InputError("The uploaded file is not the size expected. Choose the file again.");
   await db().transaction(async (tx) => {
     const [claim] = await tx
       .select({ id: claims.id })

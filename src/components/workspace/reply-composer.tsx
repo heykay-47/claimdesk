@@ -39,9 +39,9 @@ export function ReplyComposer({
       </div>
       <div className="panel-body">
         <p className="muted text-xs mb-4">
-          This helper inserts a template, not an AI-generated clinical answer.
-          Nothing is emailed. Send through the payer’s channel, then record it
-          here.
+          Draft reply fills in a standard message for you to edit. AI does not
+          write it. ClaimDesk does not send email. Send your reply to the
+          insurer or TPA yourself, then record it here.
         </p>
         <label className="field">
           Reply body
@@ -65,8 +65,9 @@ export function ReplyComposer({
       <dialog ref={dialog} className="modal" aria-label="Confirm reply has been sent">
         <h2>Has this reply been sent?</h2>
         <p className="muted">
-          Confirm only after sending it through the payer’s portal or email.
-          ClaimDesk records the reply and closes this query.
+          Choose Yes only after you have sent this reply to the insurer or TPA
+          by email or on their portal. ClaimDesk will save the reply and close
+          this query. ClaimDesk does not send it for you.
         </p>
         {error && (
           <p className="form-error" role="alert">

@@ -5,7 +5,7 @@ import { claimFile } from "@/server/workspace";
 import { formatIST, formatMoney } from "@/domain/format";
 import { elapsedMinutes } from "@/domain/deadline";
 import { STAGE_FOR_STATUS } from "@/domain/claim-status";
-import { StatusPill } from "@/components/workspace/primitives";
+import { StatusPill, STATUS_LABELS } from "@/components/workspace/primitives";
 import { Countdown } from "@/components/workspace/countdown";
 import { ChecklistBoard } from "@/components/workspace/checklist-board";
 import { UploadZone } from "@/components/workspace/upload-zone";
@@ -15,6 +15,11 @@ import { blockerText } from "@/domain/checklist-labels";
 import { PacketDownload } from "@/components/workspace/packet-download";
 import { DEDUCTION_LABELS } from "@/domain/settlement";
 import { hasIdentityMismatch } from "@/domain/identity";
+const STAGE_NAMES = {
+  PREAUTH: "pre-auth",
+  ENHANCEMENT: "enhancement",
+  DISCHARGE: "discharge",
+} as const;
 export default async function ClaimPage({
   params,
   searchParams,
@@ -93,7 +98,7 @@ export default async function ClaimPage({
             ) : (
               <CircleAlert size={17} className="shrink-0 mt-0.5" />
             )}
-            {checklist.ready ? "Ready to submit" : `Blocked: ${reason}`}
+            {checklist.ready ? "Ready to submit" : `Cannot submit yet: ${reason}`}
           </p>
           {open[0] && (
             <div className="text-xs">
@@ -106,7 +111,7 @@ export default async function ClaimPage({
       <div
         className="timeline"
         role="group"
-        aria-label="Claim milestones, all times in IST"
+        aria-label="Claim progress. Times are in Indian Standard Time (IST)"
       >
         {milestones.map((milestone, index) => {
           const event = file.events.find(
@@ -150,7 +155,8 @@ export default async function ClaimPage({
                 <h2>Document checklist</h2>
                 <p className="muted text-xs mt-1">
                   {file.checklist.counts.requiredSatisfied} of{" "}
-                  {file.checklist.counts.required} required documents in order
+                  {file.checklist.counts.required} required documents are in
+                  order
                 </p>
               </div>
               <nav className="stage-tabs" aria-label="Checklist stage">
@@ -171,8 +177,8 @@ export default async function ClaimPage({
             </div>
             {file.stage !== STAGE_FOR_STATUS[claim.status] && (
               <p className="panel-body text-xs warning-text border-b">
-                Previewing the {file.stage.toLowerCase()} checklist. Claim
-                status is unchanged.
+                You are viewing the {STAGE_NAMES[file.stage]} checklist. This
+                does not change the claim&apos;s status.
               </p>
             )}
             <ChecklistBoard file={file} />
@@ -180,20 +186,21 @@ export default async function ClaimPage({
           <section className="panel">
             <div className="panel-heading">
               <div>
-                <h2>Pre-auth field review</h2>
+                <h2>Pre-auth details check</h2>
                 <p className="muted text-xs mt-1">
-                  Every extracted value stays a suggestion until reviewed.
+                  The AI reads details from your documents. Check each one
+                  before you mark pre-auth as sent.
                 </p>
               </div>
               <span className={`pill ${pending ? "warning" : "success"}`}>
                 {pending
-                  ? `${pending} required fields pending`
-                  : "All required fields confirmed"}
+                  ? `${pending} required ${pending === 1 ? "detail" : "details"} to check`
+                  : "All required details confirmed"}
               </span>
             </div>
             <div className="panel-body">
               <Link className="btn" href={`/claims/${code}/preauth`}>
-                Review pre-auth fields
+                Check pre-auth details
                 <ArrowUpRight size={14} />
               </Link>
             </div>
@@ -201,7 +208,7 @@ export default async function ClaimPage({
           <section className="panel">
             <div className="panel-heading">
               <h2>Upload documents</h2>
-              <span className="muted text-xs">Private storage</span>
+              <span className="muted text-xs">Files are stored privately</span>
             </div>
             <div className="panel-body">
               <UploadZone claimId={claim.id} />
@@ -209,13 +216,14 @@ export default async function ClaimPage({
           </section>
           <details className="panel">
             <summary className="panel-body font-medium text-sm">
-              Activity history · {file.events.length} events
+              Activity history · {file.events.length}{" "}
+              {file.events.length === 1 ? "update" : "updates"}
             </summary>
             <ol className="px-5 pb-5 space-y-4">
               {file.events.map((event) => (
                 <li key={event.id} className="text-xs">
                   <strong className="font-medium">
-                    {event.toStatus.replaceAll("_", " ").toLowerCase()}
+                    {STATUS_LABELS[event.toStatus]}
                   </strong>
                   <span className="muted block mt-1">
                     {formatIST(event.at)} IST · {event.actor}
@@ -278,10 +286,13 @@ export default async function ClaimPage({
                     `${claim.patientAge} years · ${claim.patientGender}`,
                   ],
                   ["UHID", claim.uhid],
-                  ["Policy", claim.policyNumber],
+                  ["Policy number", claim.policyNumber],
                   ["Doctor", claim.treatingDoctor],
                   ["Admitted", `${formatIST(claim.admittedAt)} IST`],
-                  ["Estimate", formatMoney(claim.estimatedAmountPaise)],
+                  [
+                    "Estimated cost",
+                    formatMoney(claim.estimatedAmountPaise),
+                  ],
                   ...(claim.approvedAmountPaise !== null
                     ? [["Approved", formatMoney(claim.approvedAmountPaise)]]
                     : []),
@@ -292,7 +303,7 @@ export default async function ClaimPage({
                   claim.deductionReason
                     ? [
                         [
-                          "Deduction",
+                          "Deducted by insurer",
                           `${formatMoney(claim.deductionAmountPaise)} · ${DEDUCTION_LABELS[claim.deductionReason]}`,
                         ],
                       ]
@@ -303,7 +314,7 @@ export default async function ClaimPage({
                     <dt>{label}</dt>
                     <dd
                       className={
-                        label === "Estimate" || label === "Approved"
+                        label === "Estimated cost" || label === "Approved"
                           ? "mono"
                           : ""
                       }
@@ -317,11 +328,11 @@ export default async function ClaimPage({
           </section>
           <section className="panel">
             <div className="panel-heading">
-              <h2>Hospital-side timing</h2>
+              <h2>Time taken by the hospital</h2>
             </div>
             <div className="panel-body text-xs space-y-5">
               <div>
-                <p className="font-medium">Admission → pre-auth sent</p>
+                <p className="font-medium">From admission to pre-auth sent</p>
                 <p className="mono mt-1 muted">
                   {Math.round(
                     elapsedMinutes(claim.admittedAt, preauth?.at ?? new Date()),
@@ -330,12 +341,14 @@ export default async function ClaimPage({
                 </p>
                 <p className="muted mt-1">
                   {preauth
-                    ? "Recorded hospital turnaround"
-                    : "Hospital preparation in progress"}
+                    ? "Time the hospital took to send pre-auth"
+                    : "Still being prepared. The clock is running."}
                 </p>
               </div>
               <div>
-                <p className="font-medium">Final bill sent → settlement</p>
+                <p className="font-medium">
+                  From final bill sent to settlement
+                </p>
                 <p className="mono muted mt-1">
                   {final
                     ? `${Math.round(elapsedMinutes(final.at, settled?.at ?? new Date()))} min`
@@ -344,7 +357,7 @@ export default async function ClaimPage({
               </div>
               {file.queries.map((query) => (
                 <div key={query.id}>
-                  <p className="font-medium">Query → reply</p>
+                  <p className="font-medium">From query received to reply</p>
                   <p
                     className={`mono mt-1 ${query.status === "OPEN" && query.dueAt < new Date() ? "danger-text" : "muted"}`}
                   >
@@ -354,17 +367,18 @@ export default async function ClaimPage({
                         query.answeredAt ?? new Date(),
                       ),
                     )}{" "}
-                    min /{" "}
+                    min used of{" "}
                     {Math.round(elapsedMinutes(query.receivedAt, query.dueAt))}{" "}
-                    min
+                    min allowed
                   </p>
                 </div>
               ))}
               <p className="muted">
-                IRDAI reference windows are 60 min for pre-auth and 180 min for
-                discharge decisions. Hospital preparation and settlement are
-                shown separately; these are not insurer-compliance
-                determinations.
+                IRDAI, the insurance regulator, expects an answer within 60
+                minutes for a pre-auth request and 180 minutes for a discharge
+                request. The times above are the hospital&apos;s own times.
+                They do not show whether an insurer or TPA followed these
+                limits.
               </p>
             </div>
           </section>

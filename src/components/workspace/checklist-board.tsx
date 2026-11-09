@@ -23,8 +23,8 @@ import { IdentityNotice } from "./identity-notice";
 import { hasIdentityMismatch } from "@/domain/identity";
 const labels = {
   MISSING: "Missing",
-  STALE: "Stale",
-  UNVERIFIED: "To verify",
+  STALE: "Too old",
+  UNVERIFIED: "To check",
   SATISFIED: "In order",
 };
 const priority = { MISSING: 0, STALE: 1, UNVERIFIED: 2, SATISFIED: 3 };
@@ -71,7 +71,7 @@ function DocumentCard({
           className="drag-handle"
           {...attributes}
           {...listeners}
-          aria-label={`Drag ${file.fileName} to another slot`}
+          aria-label={`Drag ${file.fileName} to another document type`}
         >
           <GripVertical size={14} />
         </button>
@@ -80,13 +80,13 @@ function DocumentCard({
       </div>
       <p className="document-meta">
         {file.classifiedBy === "AI"
-          ? `AI-sorted · ${Math.round((file.aiConfidence ?? 0) * 100)}%`
-          : "Desk-sorted"}{" "}
+          ? `Sorted by AI (${Math.round((file.aiConfidence ?? 0) * 100)}% sure)`
+          : "Sorted by the desk"}{" "}
         ·{" "}
         {file.status === "CONFIRMED"
           ? "Confirmed"
           : file.status === "FAILED"
-            ? "AI failed"
+            ? "AI could not read it"
             : "needs confirmation"}
         {file.documentDate && ` · ${file.documentDate}`}
       </p>
@@ -94,7 +94,7 @@ function DocumentCard({
       <IdentityNotice file={file} />
       {file.aiReason && (
         <details>
-          <summary>AI reasoning</summary>
+          <summary>Why the AI chose this</summary>
           <p className="mt-2">{file.aiReason}</p>
         </details>
       )}
@@ -119,19 +119,19 @@ function DocumentCard({
           <ActionButton
             action="retryDocument"
             values={{ documentId: file.id }}
-            success="AI retry complete"
+            success="AI tried again"
           >
-            Retry AI
+            Try AI again
           </ActionButton>
         )}
         <select
           className="control"
-          aria-label={`Move ${file.fileName} to another slot`}
+          aria-label={`Move ${file.fileName} to a different document type`}
           value=""
           onChange={(event) => move(file.id, event.target.value)}
         >
           <option value="" disabled>
-            Move to…
+            Move to another type…
           </option>
           {types
             .filter((t) => t.id !== file.documentTypeId)
@@ -143,10 +143,10 @@ function DocumentCard({
         </select>
       </div>
       <details>
-        <summary>Report date</summary>
+        <summary>Date on the document</summary>
         <div className="button-row mt-2">
           <label className="sr-only" htmlFor={`date-${file.id}`}>
-            Report date
+            Date on the document
           </label>
           <input
             id={`date-${file.id}`}
@@ -163,7 +163,7 @@ function DocumentCard({
                 action: "CONFIRM",
                 documentDate: date || null,
               }}
-              success="Report date updated"
+              success="Document date saved"
             >
               Save date
             </ActionButton>
@@ -190,7 +190,7 @@ export function ChecklistBoard({ file }: { file: ClaimFile }) {
       });
       if (!result.ok) toast.error(result.error);
       else {
-        toast.success("Document moved. Confirm its new slot.");
+        toast.success("Document moved. Check that its new type is right, then confirm.");
         router.refresh();
       }
     });
@@ -243,15 +243,15 @@ export function ChecklistBoard({ file }: { file: ClaimFile }) {
             <div className="slot-meta">
               {slot.rule.requirement === "REQUIRED" ? "Required" : "Optional"}
               {slot.rule.maxAgeHours
-                ? ` · Report within ${slot.rule.maxAgeHours} hours`
+                ? ` · Must be no more than ${slot.rule.maxAgeHours} hours old`
                 : ""}
               <details className="rule-tooltip">
-                <summary aria-label={`Why ${type.label} is required`}>
+                <summary aria-label={`Why ${type.label} is on the checklist`}>
                   <Info size={12} />
                 </summary>
                 <p>
                   {ruleSource(slot.rule, file.payer.name, file.procedure.name)}
-                  {slot.rule.note ? `. ${slot.rule.note}` : ""}
+                  {slot.rule.note ? ` ${slot.rule.note}` : ""}
                 </p>
               </details>
             </div>
@@ -289,7 +289,7 @@ export function ChecklistBoard({ file }: { file: ClaimFile }) {
       accessibility={{
         screenReaderInstructions: {
           draggable:
-            "Press space to pick up a document. Use arrow keys to move, space to drop and escape to cancel. Or use the Move to menu.",
+            "Press space to pick up a document. Use the arrow keys to move it, space to drop it and escape to cancel. You can also use the Move to menu.",
         },
       }}
     >
@@ -324,14 +324,14 @@ export function ChecklistBoard({ file }: { file: ClaimFile }) {
         {unsorted.length > 0 && (
           <section className="gap-slot">
             <h3>
-              Unsorted documents{" "}
+              Documents to sort{" "}
               <span className="pill warning ml-2">
-                {unsorted.length} to review
+                {unsorted.length} to check
               </span>
             </h3>
             <p className="slot-meta">
-              Choose a document type, then confirm. Failed files never fill a
-              checklist slot.
+              Choose what each document is, then confirm it. A file the AI could
+              not read never counts toward the checklist.
             </p>
             {unsorted.map((doc) => (
               <DocumentCard

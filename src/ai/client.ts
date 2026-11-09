@@ -53,10 +53,10 @@ export function aiErrorText(error: unknown): string {
     error instanceof Error &&
     /timeout|timed out|abort|deadline/i.test(`${error.name} ${error.message}`)
   )
-    return "AI processing timed out. Sort manually or retry.";
+    return "The AI took too long and timed out. Sort the document yourself or try again.";
   if (error instanceof z.ZodError || error instanceof SyntaxError)
-    return "AI returned an invalid result. Sort manually or retry.";
-  return "AI processing failed. Sort manually or retry.";
+    return "The AI gave an answer that could not be used. Sort the document yourself or try again.";
+  return "The AI could not read this document. Sort it yourself or try again.";
 }
 export async function classifyForReview(
   client: AiClient,

@@ -59,7 +59,7 @@ function FieldReview({
         return;
       }
       toast.success(
-        action === "CONFIRM" ? "Field confirmed" : "Suggestion rejected",
+        action === "CONFIRM" ? "Detail confirmed" : "Suggestion rejected",
       );
       setEditing(false);
       router.refresh();
@@ -123,19 +123,19 @@ function FieldReview({
             ? "Confirmed"
             : source?.status === "REJECTED"
               ? "Rejected"
-              : "Pending"}
+              : "To check"}
         </span>
       </div>
       {conflict && (
         <p className="warning-text text-xs mt-2">
-          Conflicting values found. Choose the supported value before
-          confirming.
+          The documents show different values for this detail. Check the source
+          documents and choose the correct value before you confirm.
         </p>
       )}
       {suggestions.length > 1 && (
         <label className="field mt-2">
           <span className="sr-only">
-            Source suggestion for {definition.label}
+            Where the value for {definition.label} was read from
           </span>
           <select
             className="control"
@@ -151,7 +151,11 @@ function FieldReview({
               <option key={s.id} value={s.id}>
                 {s.value.slice(0, 70)} ·{" "}
                 {file.files.find((d) => d.id === s.documentId)?.fileName} ·{" "}
-                {s.status.toLowerCase()}
+                {s.status === "CONFIRMED"
+                  ? "confirmed"
+                  : s.status === "REJECTED"
+                    ? "rejected"
+                    : "to check"}
               </option>
             ))}
           </select>
@@ -204,7 +208,7 @@ function FieldReview({
               </button>
             )}
             <span className="muted">
-              {Math.round(source.confidence * 100)}% confidence
+              AI is {Math.round(source.confidence * 100)}% sure
             </span>
           </div>
         </>
@@ -247,7 +251,7 @@ function FieldReview({
           {pending
             ? "Saving…"
             : value !== source?.value
-              ? "Edit + confirm"
+              ? "Save change and confirm"
               : "Confirm"}
         </button>
         {source && (
@@ -257,7 +261,7 @@ function FieldReview({
             type="button"
             onClick={() => review("REJECT")}
           >
-            Reject
+            Reject suggestion
           </button>
         )}
         {editing && (
@@ -332,8 +336,9 @@ export function PreauthReview({ file: originalFile }: { file: ClaimFile }) {
         <section className="panel panel-body mb-5">
           <h2 className="danger-text">Patient identity must be resolved</h2>
           <p className="text-sm mt-2">
-            All values from these documents are excluded from the suggestions
-            below. Check the source before confirming it as the same patient.
+            Details from these documents are hidden from the suggestions below.
+            Open each document and check that it belongs to this patient. Then
+            confirm it is the same patient, or remove it from the claim.
           </p>
           {mismatched.map((document) => (
             <div key={document.id} className="mt-3">
@@ -355,9 +360,10 @@ export function PreauthReview({ file: originalFile }: { file: ClaimFile }) {
             ordered.map(fieldRow)
           ) : (
             <div className="panel-body">
-              <h2 className="success-text">All fields confirmed</h2>
+              <h2 className="success-text">All details confirmed</h2>
               <p className="muted text-xs mt-2">
-                Open the confirmed group to inspect a source or edit a value.
+                Open the confirmed list below to see where a value came from or
+                to change it.
               </p>
             </div>
           )}
@@ -393,8 +399,8 @@ export function PreauthReview({ file: originalFile }: { file: ClaimFile }) {
             <FileContent file={source} />
           ) : (
             <p className="panel-body muted text-sm">
-              Upload documents in the claim file to review extracted evidence
-              here.
+              Upload documents in the claim file. They will show here so you
+              can check each detail against them.
             </p>
           )}
         </aside>

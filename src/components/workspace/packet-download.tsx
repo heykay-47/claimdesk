@@ -24,7 +24,7 @@ export function PacketDownload({
           if (
             blockers &&
             !window.confirm(
-              `This packet has ${blockers} unresolved ${blockers === 1 ? "blocker" : "blockers"}. The cover will list them. Download the incomplete packet? Nothing is sent to the payer.`,
+              `This packet still has ${blockers} ${blockers === 1 ? "item" : "items"} to fix. The cover page will list ${blockers === 1 ? "it" : "them"}. Download the incomplete packet anyway? Nothing is sent to the insurer or TPA.`,
             )
           )
             return;
@@ -46,7 +46,9 @@ export function PacketDownload({
             link.download = `${code}-${stage.toLowerCase()}-packet.pdf`;
             link.click();
             setTimeout(() => URL.revokeObjectURL(url), 1000);
-            toast.success("Packet downloaded. Nothing was sent to the payer.");
+            toast.success(
+              "Packet downloaded. Nothing was sent to the insurer or TPA.",
+            );
           } catch (error) {
             toast.error(
               error instanceof Error
@@ -68,8 +70,8 @@ export function PacketDownload({
             ? "Discharge"
             : "Enhancement"}
         {blockers
-          ? ` · Incomplete, ${blockers} ${blockers === 1 ? "blocker" : "blockers"} on cover`
-          : " · Confirmed files only"}
+          ? ` · Not complete. ${blockers} ${blockers === 1 ? "item" : "items"} to fix, listed on the cover page`
+          : " · Includes confirmed files only"}
       </p>
     </div>
   );

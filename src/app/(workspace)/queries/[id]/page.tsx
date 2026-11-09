@@ -42,9 +42,9 @@ export default async function QueryPage({
         <div className="stack">
           <section className="panel">
             <div className="panel-heading">
-              <h2>What the payer needs</h2>
+              <h2>What the insurer or TPA is asking for</h2>
               <span className="pill neutral">
-                AI summary · verify against email
+                AI summary. Check it against the email.
               </span>
             </div>
             <div className="panel-body">
@@ -64,7 +64,7 @@ export default async function QueryPage({
                             type="checkbox"
                             defaultChecked={query.status === "ANSWERED"}
                             disabled={query.status === "ANSWERED"}
-                            aria-label={`Reviewed ask: ${ask}`}
+                            aria-label={`Mark as read: ${ask}`}
                           />
                           <span>{ask}</span>
                         </label>
@@ -98,9 +98,9 @@ export default async function QueryPage({
                               {slot?.state === "SATISFIED"
                                 ? "Confirmed"
                                 : slot?.state === "UNVERIFIED"
-                                  ? "Confirm in claim"
+                                  ? "Confirm it in the claim"
                                   : slot?.state === "STALE"
-                                    ? "Upload fresh report"
+                                    ? "Upload a newer report"
                                     : "Upload document"}
                             </Link>
                           </li>
@@ -119,7 +119,7 @@ export default async function QueryPage({
                     <ActionButton
                       action="retryQuerySummary"
                       values={{ queryId: query.id }}
-                      success="Summary retry complete"
+                      success="AI summary request finished"
                     >
                       Retry AI summary
                     </ActionButton>
@@ -131,7 +131,7 @@ export default async function QueryPage({
           <section className="panel">
             <div className="panel-heading">
               <h2>Original email</h2>
-              <span className="muted text-xs">Preserved in full</span>
+              <span className="muted text-xs">Saved exactly as received</span>
             </div>
             <div className="panel-body">
               <dl className="text-xs grid gap-2 mb-6">
@@ -178,7 +178,7 @@ export default async function QueryPage({
               <div className="panel-body">
                 <p className="muted text-xs mb-5">
                   Recorded {query.answeredAt && formatIST(query.answeredAt)}{" "}
-                  IST. Sent separately through the payer’s channel.
+                  IST. You sent this reply yourself, outside ClaimDesk.
                 </p>
                 <pre className="email-body">{query.replyBody}</pre>
               </div>

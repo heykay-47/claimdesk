@@ -21,12 +21,14 @@ export default async function PreauthPage({
   return (
     <>
       <PageTitle
-        title="Pre-auth review"
+        title="Pre-auth details check"
         description={`${file.claim.code} · ${file.claim.patientName}`}
         back={{ href: `/claims/${code}`, label: "Claim file" }}
       >
         <span className={`pill ${pending ? "warning" : "success"}`}>
-          {pending} required fields pending
+          {pending
+            ? `${pending} required ${pending === 1 ? "detail" : "details"} to check`
+            : "All required details confirmed"}
         </span>
       </PageTitle>
       <PreauthReview file={file} />

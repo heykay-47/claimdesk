@@ -74,7 +74,7 @@ export default async function ClaimsPage({
       tone: "",
     },
     {
-      label: "Queries due today",
+      label: "Insurer queries due today",
       value: rows
         .flatMap((r) => r.queries)
         .filter((q) => q.status === "OPEN" && istDay(q.dueAt) === istDay(now))
@@ -83,7 +83,7 @@ export default async function ClaimsPage({
       tone: "",
     },
     {
-      label: "Overdue queries",
+      label: "Overdue query replies",
       value: rows
         .flatMap((r) => r.queries)
         .filter((q) => q.status === "OPEN" && q.dueAt < now).length,
@@ -91,7 +91,7 @@ export default async function ClaimsPage({
       tone: "danger-text",
     },
     {
-      label: "Claims blocked by gaps",
+      label: "Claims not ready to submit",
       value: active.filter((r) => !r.checklist.ready).length,
       view: "gaps",
       tone: "",
@@ -99,10 +99,7 @@ export default async function ClaimsPage({
   ];
   return (
     <>
-      <PageTitle
-        title="Claims"
-        description="Every admission, from pre-auth to settlement."
-      >
+      <PageTitle title="Claims">
         <Link className="btn primary" href="/claims/new">
           <Plus size={15} />
           New claim
@@ -152,11 +149,11 @@ export default async function ClaimsPage({
         </select>
         <select
           className="control"
-          aria-label="Filter by payer"
+          aria-label="Filter by insurer or TPA"
           name="payer"
           defaultValue={filters.payer ?? ""}
         >
-          <option value="">All payers</option>
+          <option value="">All insurers and TPAs</option>
           {ref.payers.map((payer) => (
             <option key={payer.id} value={payer.id}>
               {payer.name}
@@ -170,7 +167,7 @@ export default async function ClaimsPage({
             value="1"
             defaultChecked={!!filters.gaps}
           />
-          Has gaps
+          Not ready to submit
         </label>
         <label className="checkbox-label">
           <input
@@ -179,14 +176,14 @@ export default async function ClaimsPage({
             value="1"
             defaultChecked={!!filters.overdue}
           />
-          Overdue
+          Overdue query reply
         </label>
         {filters.view && (
           <input type="hidden" name="view" value={filters.view} />
         )}
         {Object.values(filters).some(Boolean) && (
           <Link href="/claims" className="btn ghost">
-            Clear
+            Clear filters
           </Link>
         )}
       </FilterForm>
@@ -198,12 +195,12 @@ export default async function ClaimsPage({
                 {[
                   "Claim",
                   "Patient",
-                  "Payer",
+                  "Insurer or TPA",
                   "Procedure",
                   "Status",
-                  "Readiness",
-                  "Next deadline",
-                  "Assignee",
+                  "Ready to submit?",
+                  "Next reply due",
+                  "Assigned to",
                 ].map((label) => (
                   <th key={label} scope="col">
                     {label}
@@ -272,12 +269,12 @@ export default async function ClaimsPage({
             title={
               rows.length
                 ? "No claims match these filters"
-                : "Your claims start here"
+                : "No claims yet"
             }
             description={
               rows.length
-                ? "Try a different search or clear the filters to see every claim."
-                : "Open a claim to start tracking its documents and payer response."
+                ? "Try a different search, or clear the filters to see every claim."
+                : "Create a claim to track its documents and the insurer or TPA's replies."
             }
           >
             <Link
@@ -289,7 +286,8 @@ export default async function ClaimsPage({
           </EmptyState>
         )}
         <div className="table-footer">
-          {filtered.length} of {rows.length} claims · All times in IST
+          {filtered.length} of {rows.length} claims · Times are in Indian
+          Standard Time (IST)
         </div>
       </div>
     </>

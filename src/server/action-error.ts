@@ -12,5 +12,5 @@ export function actionError(error: unknown) {
     error instanceof AuthorizationError
   )
     return error.message;
-  return "Could not save this change. Please retry. If it persists, reload the page.";
+  return "This change could not be saved. Try again. If it keeps happening, reload the page.";
 }

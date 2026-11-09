@@ -25,8 +25,9 @@ export function IdentityNotice({ file }: { file: WorkspaceDocument }) {
       {blocked ? (
         <>
           <p className="text-xs mb-3">
-            Excluded from readiness, pre-auth values and the packet until
-            resolved.
+            Until you decide, this document does not count toward the
+            checklist. Its details are also left out of the pre-auth fields and
+            the packet.
           </p>
           <div className="button-row">
             <ActionButton
@@ -36,7 +37,7 @@ export function IdentityNotice({ file }: { file: WorkspaceDocument }) {
                 action: "REMOVE",
                 confirmedRemoval: true,
               }}
-              confirm="Remove this document and its extracted values from this claim? It will no longer be available in the claim or packet. The removal is audited."
+              confirm="Remove this document, and the details read from it, from this claim? It will no longer appear in the claim or the packet. The removal is saved in the activity log."
               success="Document removed from claim"
               className="btn small ghost"
             >
@@ -48,17 +49,18 @@ export function IdentityNotice({ file }: { file: WorkspaceDocument }) {
                 <ActionButton
                   action="reviewDocument"
                   values={{ documentId: file.id, action: "CONFIRM_IDENTITY" }}
-                  confirm="Have you checked the source and verified that it belongs to this patient despite the identity difference? Your identity override will be recorded and this document will be confirmed."
-                  success="Same patient confirmed. Identity override recorded."
+                  confirm="Have you opened the document and checked that it belongs to this patient, even though the details differ? Your name and the time will be saved in the activity log, and the document will be confirmed."
+                  success="Marked as the same patient. Your decision is saved in the activity log."
                 >
-                  Same patient — confirm
+                  Confirm same patient
                 </ActionButton>
               )}
           </div>
         </>
       ) : (
         <p className="text-xs">
-          Same patient confirmed by the desk. Audited override
+          The desk confirmed this is the same patient. Saved in the activity
+          log
           {file.identityOverrideAt
             ? ` · ${formatIST(file.identityOverrideAt)} IST`
             : ""}

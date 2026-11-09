@@ -13,7 +13,7 @@ export function RuleEditor({
   procedureId,
   stage,
   affected,
-  sourceLabel = "New override",
+  sourceLabel = "New rule for this choice",
 }: {
   rule?: ResolvedRule;
   types: { id: string; label: string }[];
@@ -112,7 +112,7 @@ export function RuleEditor({
         >
           <option value="REQUIRED">Required</option>
           <option value="OPTIONAL">Optional</option>
-          <option value="WAIVED">Waived</option>
+          <option value="WAIVED">Waived (not needed)</option>
         </select>
       </td>
       <td>
@@ -120,11 +120,11 @@ export function RuleEditor({
           className="control rule-age"
           form={formId}
           disabled={pending}
-          aria-label={`Max age for ${label}`}
+          aria-label={`Oldest allowed age in hours for ${label}`}
           type="number"
           min="1"
           max="87600"
-          placeholder="None"
+          placeholder="No limit"
           value={maxAge}
           onChange={(event) => setMaxAge(event.target.value)}
         />
@@ -141,7 +141,7 @@ export function RuleEditor({
           maxLength={5000}
           value={note}
           onChange={(event) => setNote(event.target.value)}
-          placeholder="Desk note"
+          placeholder="Note for the desk"
         />
       </td>
       <td>
@@ -161,11 +161,11 @@ export function RuleEditor({
             <ActionButton
               action="deleteRule"
               values={{ ruleId: rule.id }}
-              confirm="Remove this rule? Any less-specific rule will apply again."
+              confirm="Remove this rule? The next wider rule will apply again instead."
               success="Rule removed"
               className="text-link text-xs"
             >
-              Remove {rule.source === "DEFAULT" ? "rule" : "override"}
+              Remove this rule
             </ActionButton>
           )}
         </div>
@@ -181,9 +181,10 @@ export function RuleEditor({
         >
           <h2>Waive this document requirement?</h2>
           <p className="muted text-sm">
-            This removes {label.toLowerCase()} from the effective checklist for
-            this scope. It may make a blocked claim ready without that document.
-            Affects {affected} open claims.
+            This removes {label.toLowerCase()} from the checklist for the
+            insurer or TPA, procedure and stage you chose. A claim that cannot
+            be submitted today may become ready without that document. This
+            affects {affected} open {affected === 1 ? "claim" : "claims"}.
           </p>
           <div className="modal-footer">
             <button

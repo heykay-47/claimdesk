@@ -6,7 +6,7 @@ import type { ChecklistResult, ResolvedRule } from "@/domain/checklist";
 export const STATUS_LABELS: Record<ClaimStatus, string> = {
   PREAUTH_DRAFT: "Pre-auth draft",
   PREAUTH_SUBMITTED: "Pre-auth sent",
-  QUERY: "Query",
+  QUERY: "Query from insurer",
   APPROVED: "Approved",
   ENHANCEMENT: "Enhancement",
   FINAL_BILL_SUBMITTED: "Final bill sent",
@@ -80,21 +80,26 @@ export function readinessText(result: ChecklistResult) {
   const counts = result.counts;
   const parts = [
     counts.MISSING ? `${counts.MISSING} missing` : "",
-    counts.STALE ? `${counts.STALE} stale` : "",
-    counts.UNVERIFIED ? `${counts.UNVERIFIED} to verify` : "",
+    counts.STALE ? `${counts.STALE} too old` : "",
+    counts.UNVERIFIED ? `${counts.UNVERIFIED} to check` : "",
     result.unsorted.filter((f) => f.status !== "CONFIRMED").length
-      ? "Unsorted files"
+      ? "Files to sort"
       : "",
-    result.blockers.some((b) => b.kind === "FIELD") ? "Fields to review" : "",
+    result.blockers.some((b) => b.kind === "FIELD") ? "Details to check" : "",
   ].filter(Boolean);
-  return parts.join(" · ") || "Review needed";
+  return parts.join(" · ") || "Needs a check";
 }
 export function ruleSource(
   rule: ResolvedRule,
   payer: string,
   procedure: string,
 ) {
-  return `${rule.payerId ? payer : "All payers"} · ${rule.procedureId ? procedure : "default"}`;
+  if (rule.payerId && rule.procedureId)
+    return `This rule is for ${payer} and ${procedure}.`;
+  if (rule.payerId) return `This rule is for ${payer}, for every procedure.`;
+  if (rule.procedureId)
+    return `This rule is for ${procedure}, for every insurer and TPA.`;
+  return "This rule is hospital-wide. It applies to every insurer, TPA and procedure.";
 }
 export function Skeleton() {
   return (

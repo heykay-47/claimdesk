@@ -5,7 +5,8 @@ export default function Forbidden() {
       <p className="mono muted">403</p>
       <h1>Desk head access required</h1>
       <p className="muted">
-        Only the desk head can manage checklist rules and view the audit log.
+        Only the desk head can change the checklist rules or see the activity
+        log.
       </p>
       <Link href="/claims" className="btn primary">
         Back to claims

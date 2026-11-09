@@ -69,7 +69,7 @@ async function main() {
     await capture(page, "worklist-desktop");
     await page.goto("/claims/CLM-3381");
     await expect(
-      page.getByText("Blocked: Ultrasound report missing", { exact: true }),
+      page.getByText("Cannot submit yet: Ultrasound report is missing", { exact: true }),
     ).toBeVisible();
     await capture(page, "claim-desktop");
     await page.setViewportSize({ width: 390, height: 1000 });
@@ -77,7 +77,7 @@ async function main() {
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.goto("/claims/CLM-3385");
     await expect(
-      page.getByText("Blocked: Platelet count is stale", { exact: true }),
+      page.getByText("Cannot submit yet: Platelet count is too old", { exact: true }),
     ).toBeVisible();
     await capture(page, "platelet-stale-desktop");
     await page.goto("/claims/CLM-3381/preauth");
@@ -93,7 +93,7 @@ async function main() {
     await capture(page, "queries-desktop");
     await page.goto(`/queries/${seedId("query:CLM-3381:ultrasound")}`);
     await expect(
-      page.getByRole("heading", { name: "What the payer needs", exact: true }),
+      page.getByRole("heading", { name: "What the insurer or TPA is asking for", exact: true }),
     ).toBeVisible();
     await capture(page, "query-detail-desktop");
     await page.goto("/insights");
@@ -111,12 +111,12 @@ async function main() {
       `/settings/checklists?payer=${seedId("payer:Company B")}&procedure=${seedId("procedure:Gall bladder removal")}&stage=PREAUTH`,
     );
     await expect(
-      head.getByRole("columnheader", { name: "Source tier", exact: true }),
+      head.getByRole("columnheader", { name: "Rule applies to", exact: true }),
     ).toBeVisible();
     await capture(head, "checklists-desktop");
     await head.goto("/settings/audit");
     await expect(
-      head.getByRole("heading", { name: "Audit log", exact: true }),
+      head.getByRole("heading", { name: "Activity log", exact: true }),
     ).toBeVisible();
     await capture(head, "audit-desktop");
     console.log(JSON.stringify(sizes, null, 2));

@@ -32,7 +32,7 @@ export function Sidebar({
             label: "Checklist rules",
             icon: ListChecks,
           },
-          { href: "/settings/audit", label: "Audit log", icon: History },
+          { href: "/settings/audit", label: "Activity log", icon: History },
         ]
       : []),
   ];
@@ -64,9 +64,9 @@ export function Sidebar({
       </nav>
       <div className="sidebar-bottom">
         <p className="demo-note">
-          Synthetic demo data
+          Demo data only
           <br />
-          No patient records
+          No real patients
         </p>
         <details className="user-menu">
           <summary>

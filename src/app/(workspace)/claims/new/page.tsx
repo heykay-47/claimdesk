@@ -7,7 +7,7 @@ export default async function NewClaimPage() {
     <>
       <PageTitle
         title="New claim"
-        description="Open an admission file. Documents and pre-auth review come next."
+        description="Enter admission details, then upload documents."
         back={{ href: "/claims", label: "Claims" }}
       />
       <section className="panel max-w-3xl">
@@ -71,10 +71,10 @@ export default async function NewClaimPage() {
                 <label className="field">
                   Insurer or TPA
                   <select name="payerId" className="control" required>
-                    <option value="">Select payer</option>
+                    <option value="">Select insurer or TPA</option>
                     {ref.payers.map((payer) => (
                       <option value={payer.id} key={payer.id}>
-                        {payer.name} · {payer.kind}
+                        {payer.name} · {payer.kind === "TPA" ? "TPA" : "Insurer"}
                       </option>
                     ))}
                   </select>
@@ -129,7 +129,9 @@ export default async function NewClaimPage() {
               </div>
             </section>
             <p className="muted text-xs mb-5">
-              The claim starts as a pre-auth draft and is assigned to you.
+              The claim starts as a pre-auth draft. That means the approval
+              request has not been sent to the insurer or TPA yet. The claim is
+              assigned to you.
             </p>
           </ActionForm>
         </div>

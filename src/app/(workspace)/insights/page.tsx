@@ -17,26 +17,28 @@ export default async function InsightsPage() {
     <>
       <PageTitle
         title="Insights"
-        description="Recorded desk activity, decision waits and settlement deductions."
+        description="How long insurer decisions take, how fast queries are answered, and how much insurers deducted."
       />
       <p className="muted text-xs mb-5">
-        All recorded claims · Updated {formatIST(data.generatedAt)} IST
+        Covers all recorded claims · Updated {formatIST(data.generatedAt)} IST
       </p>
       <section className="panel mb-6">
         <div className="panel-heading">
           <div>
-            <h2>Pending payer decisions</h2>
+            <h2>Waiting for insurer decisions</h2>
             <p className="muted text-xs mt-1">
-              Elapsed since the desk marked the request sent.
+              Time since your desk marked the request as sent.
             </p>
           </div>
-          <span className="pill neutral">{data.pending.length} pending</span>
+          <span className="pill neutral">{data.pending.length} waiting</span>
         </div>
         <div className="px-5 py-4 text-xs muted border-b leading-6">
-          IRDAI reference windows are 60 min for pre-auth and 180 min for
-          discharge decisions. These desk-recorded clocks do not confirm payer
-          receipt or complete documentation. They are not insurer-compliance
-          findings. Claims awaiting a query reply are excluded.
+          IRDAI, the insurance regulator, expects an answer within 60 minutes
+          for a pre-auth request and 180 minutes for a discharge request. The
+          clock here starts when your desk marked the request as sent. It does
+          not prove the insurer or TPA received the request or had every
+          document. It does not show whether they broke the rule. Claims
+          waiting for your reply to a query are left out.
         </div>
         {data.pending.length ? (
           <div className="table-wrap">
@@ -45,10 +47,10 @@ export default async function InsightsPage() {
                 <tr>
                   {[
                     "Claim",
-                    "Decision",
-                    "Hospital preparation",
-                    "Wait since marked sent",
-                    "Reference",
+                    "Waiting for",
+                    "Hospital time to prepare",
+                    "Waiting so far",
+                    "Expected within",
                   ].map((label) => (
                     <th scope="col" key={label}>
                       {label}
@@ -73,7 +75,7 @@ export default async function InsightsPage() {
                       <span className="sub">
                         {row.sentAt
                           ? `${formatIST(row.sentAt)} IST`
-                          : "Submission time not recorded"}
+                          : "Time sent was not recorded"}
                       </span>
                     </td>
                     <td>
@@ -106,8 +108,8 @@ export default async function InsightsPage() {
                           </div>
                           <span className="sub">
                             {row.timing.exceeded
-                              ? "Beyond the reference window"
-                              : "Within the reference window"}
+                              ? "Past the expected time"
+                              : "Within the expected time"}
                           </span>
                         </>
                       ) : (
@@ -124,17 +126,17 @@ export default async function InsightsPage() {
           </div>
         ) : (
           <EmptyState
-            title="No pending decisions"
-            description="Pre-auth and final-bill requests marked sent will appear here."
+            title="No decisions are pending"
+            description="Pre-auth and final bill requests you mark as sent will appear here."
           />
         )}
       </section>
       <div className="insights-grid">
         <section className="panel">
           <div className="panel-heading">
-            <h2>Query response performance</h2>
+            <h2>How fast queries are answered</h2>
             <Link className="text-link text-xs" href="/queries">
-              Open inbox
+              Open query inbox
             </Link>
           </div>
           <div className="panel-body">
@@ -153,8 +155,8 @@ export default async function InsightsPage() {
             )}
             <p className="muted text-xs mt-3 leading-6">
               {data.queries.sameDay} of {data.queries.answered} answered queries
-              were received and answered on the same IST calendar day. Open
-              queries are not in this denominator.
+              were answered on the same day they arrived (Indian time). Queries
+              that are still open are not counted.
             </p>
             <div className="insight-metric mt-6 pt-5 border-t">
               <span>Overdue now</span>
@@ -167,15 +169,20 @@ export default async function InsightsPage() {
             </div>
             {data.queries.missingAnswerTimes > 0 && (
               <p className="warning-text text-xs mt-3">
-                {data.queries.missingAnswerTimes} answered queries have no
-                response timestamp and are excluded from same-day performance.
+                {data.queries.missingAnswerTimes} answered queries have no reply
+                time saved, so they are left out of the same-day figure.
               </p>
             )}
           </div>
         </section>
         <section className="panel">
           <div className="panel-heading">
-            <h2>Deductions by reason</h2>
+            <div>
+              <h2>Deductions by reason</h2>
+              <p className="muted text-xs mt-1">
+                Money the insurer or TPA did not pay when it settled a claim.
+              </p>
+            </div>
             <span className="mono">
               {formatMoney(data.deductionTotalPaise)}
             </span>
@@ -207,14 +214,14 @@ export default async function InsightsPage() {
               </div>
             ) : (
               <p className="muted text-sm">
-                No deductions recorded yet. Capture an amount and reason when
-                recording settlement.
+                No deductions recorded yet. When you record a settlement, you
+                can also enter the amount deducted and the reason.
               </p>
             )}
             <p className="muted text-xs mt-5 leading-6">
               {data.deductionCount} of {data.settledCount} settled claims have a
-              recorded deduction. Unrecorded amounts are excluded, not treated
-              as zero. Bars are relative to the largest recorded reason total.
+              deduction on record. Claims with no deduction recorded are not
+              counted as zero. Each bar is sized against the largest reason.
             </p>
           </div>
         </section>

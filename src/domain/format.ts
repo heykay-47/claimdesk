@@ -1,7 +1,7 @@
 export function rupeesToPaise(value: string): bigint {
   if (!/^\d+(\.\d{1,2})?$/.test(value))
     throw new Error(
-      "Enter a non-negative amount with up to two decimal places",
+      "Enter an amount of zero or more, with at most two decimal places.",
     );
   const [whole, fraction = ""] = value.split(".");
   return BigInt(whole) * BigInt(100) + BigInt(fraction.padEnd(2, "0"));

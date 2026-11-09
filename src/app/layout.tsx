@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "ClaimDesk",
-  description: "Hospital cashless claims and TPA tracking workspace",
+  description: "Track hospital cashless insurance claims, documents and replies",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

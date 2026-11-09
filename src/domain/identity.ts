@@ -122,10 +122,10 @@ export function withIdentityChecks<
 }
 
 export function identityWarning(difference: IdentityDifference) {
-  const field = {
-    patient_name: "patient",
-    policy_number: "policy number",
-    uhid: "UHID",
+  const opening = {
+    patient_name: "This may be a different patient.",
+    policy_number: "The policy number may not match this claim.",
+    uhid: "The UHID may not match this claim.",
   }[difference.field];
-  return `Different ${field}? Found '${difference.found}' · claim is '${difference.expected}'`;
+  return `${opening} The document says '${difference.found}'. The claim says '${difference.expected}'.`;
 }

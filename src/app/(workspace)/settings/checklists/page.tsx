@@ -38,7 +38,8 @@ export default async function ChecklistSettingsPage({
     procedureId: procedureId ?? "ALL",
     stage: params.stage,
   });
-  const payer = ref.payers.find((p) => p.id === payerId)?.name ?? "All payers";
+  const payer =
+    ref.payers.find((p) => p.id === payerId)?.name ?? "All insurers and TPAs";
   const procedure =
     ref.procedures.find((p) => p.id === procedureId)?.name ?? "All procedures";
   const unused = ref.types.filter(
@@ -48,13 +49,13 @@ export default async function ChecklistSettingsPage({
     <>
       <PageTitle
         title="Checklist rules"
-        description="Define what the desk needs before a claim can move forward."
+        description="Choose which documents are needed for each insurer or TPA, procedure and stage. The stage is the step of the claim: pre-auth, enhancement or discharge."
       />
       <FilterForm>
         <label className="field">
-          Payer
+          Insurer or TPA
           <select className="control" name="payer" defaultValue={payerId ?? ""}>
-            <option value="">All payers</option>
+            <option value="">All insurers and TPAs</option>
             {ref.payers.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
@@ -93,19 +94,32 @@ export default async function ChecklistSettingsPage({
               {payer} · {procedure}
             </h2>
             <p className="muted text-xs mt-1">
-              Effective {params.stage.toLowerCase()} checklist · Most-specific
-              rule wins
+              Checklist in use for{" "}
+              {params.stage === "PREAUTH"
+                ? "pre-auth"
+                : params.stage === "DISCHARGE"
+                  ? "discharge"
+                  : "enhancement"}{" "}
+              · The most specific rule is used
             </p>
           </div>
           <span className="pill neutral">
-            Affects {affected} open {affected === 1 ? "claim" : "claims"}
+            Changes affect {affected} open {affected === 1 ? "claim" : "claims"}
           </span>
         </div>
-        <p className="px-5 py-3 text-xs muted border-b">
-          Payer + procedure overrides payer, then procedure, then defaults.
-          Editing an inherited row creates an override here. Waived documents
-          are not required.
-        </p>
+        <div className="px-5 py-3 text-xs muted border-b space-y-1">
+          <p>
+            When more than one rule fits a claim, the most specific rule is
+            used. From most to least specific: the insurer or TPA with the
+            procedure, the insurer or TPA alone, the procedure alone, then the
+            hospital-wide rule.
+          </p>
+          <p>
+            If you change a row that comes from a wider rule, ClaimDesk saves a
+            new rule just for the choices above. The wider rule stays as it is.
+            Documents marked Waived are not needed.
+          </p>
+        </div>
         {resolved.length ? (
           <div className="table-wrap">
             <table className="data-table rule-table">
@@ -114,10 +128,10 @@ export default async function ChecklistSettingsPage({
                   {[
                     "Document",
                     "Requirement",
-                    "Max age (h)",
-                    "Source tier",
+                    "Oldest allowed (hours)",
+                    "Rule applies to",
                     "Note",
-                    "Actions",
+                    "Save or remove",
                   ].map((label) => (
                     <th scope="col" key={label}>
                       {label}
@@ -147,12 +161,12 @@ export default async function ChecklistSettingsPage({
                       affected={affected}
                       sourceLabel={
                         rule.source === "PAYER_PROCEDURE"
-                          ? `${payer} · ${procedure}`
+                          ? `${payer} and ${procedure}`
                           : rule.source === "PAYER"
-                            ? payer
+                            ? `${payer}, every procedure`
                             : rule.source === "PROCEDURE"
-                              ? "Procedure"
-                              : "Default"
+                              ? `${procedure}, every insurer and TPA`
+                              : "Hospital-wide"
                       }
                     />
                   ))}
@@ -171,8 +185,8 @@ export default async function ChecklistSettingsPage({
           </div>
         ) : (
           <EmptyState
-            title="No requirements for this stage"
-            description="Add a default or scoped requirement. Required pre-auth field reviews still apply."
+            title="No documents are required at this stage yet"
+            description="Add a document below. The pre-auth details check still applies."
           />
         )}
         {!resolved.length && unused.length > 0 && (

@@ -60,7 +60,7 @@ async function lockClaim(tx: Transaction, claimId: string) {
     .from(claims)
     .where(eq(claims.id, claimId))
     .for("update");
-  if (!claim) throw new InputError("Claim not found. Reload the worklist.");
+  if (!claim) throw new InputError("Claim not found. Reload the page and try again.");
   return claim;
 }
 async function record(
@@ -89,7 +89,7 @@ async function advance(
   );
   if (!transition)
     throw new InputError(
-      "This action is no longer available. Reload the claim.",
+      "This step is no longer available for this claim. Reload the page.",
     );
   let readiness;
   const openQueries = await tx
@@ -107,7 +107,7 @@ async function advance(
     })
   )
     throw new InputError(
-      "Submission blocked. Resolve the checklist gaps and pending reviews first.",
+      "Submission blocked. Fix the missing, old or unconfirmed items on the checklist first.",
     );
   await tx
     .update(claims)
@@ -133,7 +133,7 @@ async function advance(
     actorId,
     note:
       action === "record_settlement" && amount !== undefined
-        ? `${noteText}${noteText ? "\n" : ""}Settled amount: ${formatMoney(amount)}${deduction ? `\nDeducted: ${formatMoney(deduction.amount)} (${DEDUCTION_LABELS[deduction.reason]})` : ""}`
+        ? `${noteText}${noteText ? "\n" : ""}Settled amount: ${formatMoney(amount)}${deduction ? `\nDeducted: ${formatMoney(deduction.amount)}. Reason: ${DEDUCTION_LABELS[deduction.reason]}` : ""}`
         : noteText,
   });
   await record(tx, actorId, "CLAIM_TRANSITION", "claim", claim.id, {
@@ -258,7 +258,7 @@ export async function reviewDocument(input: unknown) {
       .where(eq(documents.id, reference.id));
     if (!file || file.removedAt)
       throw new InputError(
-        "The demo was reset. Reload the claim before reviewing this document.",
+        "The demo data was reset. Reload the page before you check this document.",
       );
     if (data.action === "REMOVE") {
       if (!data.confirmedRemoval)
@@ -283,11 +283,11 @@ export async function reviewDocument(input: unknown) {
     const mismatched = hasIdentityMismatch({ ...file, identity });
     if (data.action === "CONFIRM" && mismatched)
       throw new InputError(
-        "Different patient detected. Remove the document or use Same patient — confirm after checking the source.",
+        "Different patient detected. Check the document, then remove it from the claim or choose Confirm same patient.",
       );
     if (data.action === "CONFIRM_IDENTITY" && !mismatched)
       throw new InputError(
-        "No unresolved identity mismatch. Reload the claim.",
+        "This document has no patient mismatch left to confirm. Reload the page.",
       );
     if (
       (data.action === "CONFIRM" || data.action === "CONFIRM_IDENTITY") &&
@@ -297,7 +297,7 @@ export async function reviewDocument(input: unknown) {
     )
       throw new InputError("Choose a document type before confirming.");
     if (data.action === "MOVE" && !data.documentTypeId)
-      throw new InputError("Choose the destination slot.");
+      throw new InputError("Choose where to move the document.");
     await tx
       .update(documents)
       .set(
@@ -374,7 +374,7 @@ export async function processDocument(
       .where(eq(documents.id, file.id));
     if (!current || current.removedAt)
       throw new InputError(
-        "The demo was reset during processing. Reload the claim and upload again.",
+        "The demo data was reset while the AI was reading this file. Reload the page and upload it again.",
       );
     const humanReviewed =
       current.classifiedBy === "USER" ||
@@ -415,10 +415,10 @@ export async function retryDocument(input: unknown, client?: AiClient) {
     .from(documents)
     .where(eq(documents.id, documentId));
   if (!file || file.removedAt || file.status !== "FAILED")
-    throw new InputError("Only failed documents can be retried.");
+    throw new InputError("Only documents the AI could not read can be tried again.");
   const blob = await readDocument(file.blobPathname);
   if (!blob || blob.statusCode !== 200)
-    throw new InputError("File unavailable. Upload it again.");
+    throw new InputError("The file is not available. Upload it again.");
   const bytes = new Uint8Array(await new Response(blob.stream).arrayBuffer());
   return processDocument(documentId, bytes, client);
 }
@@ -459,7 +459,7 @@ export async function reviewField(input: unknown) {
             ),
           )
       : [];
-    if (data.fieldId && !existing) throw new InputError("Field not found");
+    if (data.fieldId && !existing) throw new InputError("That detail was not found. Reload the page.");
     const sourceId = existing?.documentId ?? data.documentId;
     const [sourceFile] = sourceId
       ? await tx
@@ -482,7 +482,7 @@ export async function reviewField(input: unknown) {
       );
       if (hasIdentityMismatch({ ...sourceFile, identity }))
         throw new InputError(
-          "This source may belong to a different patient. Resolve its identity in the claim file before confirming fields.",
+          "This document may belong to a different patient. Settle the patient check in the claim file before you confirm details from it.",
         );
     }
     if (!existing && data.action === "REJECT")
@@ -562,7 +562,7 @@ export async function logQuery(
       !canTransition(claim.status, "record_query")
     )
       throw new InputError(
-        "Queries can be logged only after pre-auth is submitted.",
+        "You can log a query only after pre-auth has been marked as sent.",
       );
     const [payer] = await tx
       .select()
@@ -605,7 +605,7 @@ export async function answerQuery(input: unknown) {
       .select()
       .from(queries)
       .where(eq(queries.id, data.queryId));
-    if (!row) throw new InputError("Query not found");
+    if (!row) throw new InputError("Query not found. Reload the page.");
     const claim = await lockClaim(tx, row.claimId);
     const [query] = await tx
       .select()
@@ -613,7 +613,7 @@ export async function answerQuery(input: unknown) {
       .where(eq(queries.id, row.id));
     if (!query)
       throw new InputError(
-        "The demo was reset. Reload the inbox before recording this reply.",
+        "The demo data was reset. Reload the page before you record this reply.",
       );
     if (query.status !== "OPEN")
       throw new InputError("This reply has already been recorded.");
@@ -651,7 +651,7 @@ export async function retryQuerySummary(
     .select()
     .from(queries)
     .where(eq(queries.id, queryId));
-  if (!row) throw new InputError("Query not found");
+  if (!row) throw new InputError("Query not found. Reload the page.");
   const result = await summariseForReview(
     client,
     row.subject,
@@ -720,7 +720,7 @@ export async function deleteRule(input: unknown) {
       .delete(checklistRules)
       .where(eq(checklistRules.id, ruleId))
       .returning();
-    if (!rule) throw new InputError("Rule no longer exists");
+    if (!rule) throw new InputError("This rule was already removed. Reload the page.");
     await record(tx, user.id, "RULE_DELETE", "checklist_rule", rule.id, {
       payerId: rule.payerId,
       procedureId: rule.procedureId,

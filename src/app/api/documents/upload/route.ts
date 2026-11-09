@@ -17,7 +17,7 @@ export async function POST(request: Request) {
     const origin = request.headers.get("origin");
     if (!origin || new URL(origin).host !== request.headers.get("host"))
       return Response.json(
-        { error: "Invalid request origin" },
+        { error: "This request did not come from ClaimDesk. Reload the page and try again." },
         { status: 403 },
       );
     const input = z

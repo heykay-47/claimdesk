@@ -99,10 +99,10 @@ async function main() {
       .locator(".document-card")
       .filter({ hasText: "Imran-Shaikh-admission-note.pdf" });
     await expect(card.getByRole("alert")).toContainText(
-      "Different patient? Found 'Imran Shaikh' · claim is 'Rajendra Pawar'",
+      "This may be a different patient. The document says 'Imran Shaikh'. The claim says 'Rajendra Pawar'.",
     );
     await expect(page.locator(".readiness")).toContainText(
-      "Different patient?",
+      "This may be a different patient.",
     );
     await expect(
       card.getByRole("button", { name: "Confirm", exact: true }),
@@ -146,7 +146,7 @@ async function main() {
       .click();
     await expect(card).toHaveCount(0);
     await expect(page.locator(".readiness")).toHaveText(
-      "Blocked: Ultrasound report missing",
+      "Cannot submit yet: Ultrasound report is missing",
     );
     expect(
       (await page.request.get(`/api/documents/${documentId}/file`)).status(),
@@ -155,13 +155,13 @@ async function main() {
     await page.reload();
     page.once("dialog", (dialog) => dialog.accept());
     await card
-      .getByRole("button", { name: "Same patient — confirm", exact: true })
+      .getByRole("button", { name: "Confirm same patient", exact: true })
       .click();
     await expect(page.locator(".readiness")).toHaveText(
-      "Blocked: Ultrasound report missing",
+      "Cannot submit yet: Ultrasound report is missing",
     );
     await page.getByText("5 documents in order", { exact: true }).click();
-    await expect(card).toContainText("Same patient confirmed by the desk");
+    await expect(card).toContainText("The desk confirmed this is the same patient");
     const audits = await db()
       .select()
       .from(auditLogs)

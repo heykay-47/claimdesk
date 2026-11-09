@@ -22,7 +22,7 @@ export default async function NewQueryPage({
     <>
       <PageTitle
         title="Log incoming query"
-        description="Paste the payer’s email. AI will summarise the asks and identify a reply deadline."
+        description="Paste the email from the insurer or TPA. AI will summarise what they are asking for and find the reply deadline. Check the summary against the email."
         back={{ href: "/queries", label: "Query inbox" }}
       />
       {claims.length ? (
@@ -51,7 +51,7 @@ export default async function NewQueryPage({
                   </select>
                 </label>
                 <label className="field">
-                  From email address
+                  Sender&apos;s email address
                   <input
                     className="control"
                     type="email"
@@ -91,16 +91,16 @@ export default async function NewQueryPage({
                 </label>
               </div>
               <p className="muted text-xs mb-5">
-                If no explicit deadline is found, the payer’s configured reply
-                window applies. The original email is always preserved.
+                If the email gives no deadline, we use the usual reply time set
+                for this insurer or TPA. The original email is always kept.
               </p>
             </ActionForm>
           </div>
         </section>
       ) : (
         <EmptyState
-          title="No claims are awaiting pre-auth"
-          description="Submit a claim’s pre-auth packet before logging an incoming query."
+          title="No claims are waiting for an insurer reply"
+          description="Mark a claim's pre-auth as sent before you log a query from the insurer or TPA."
         />
       )}
     </>
