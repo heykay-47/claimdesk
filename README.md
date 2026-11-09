@@ -34,7 +34,7 @@ Try uploading [`seed/files/handwritten-notes.png`](seed/files/handwritten-notes.
 - **AI** (`src/ai/`). Gemini with a strict JSON schema, validated with zod. It classifies uploads into checklist slots, pre-fills pre-auth fields with source snippets, and summarises TPA queries. Nothing is accepted without a click, and nothing is sent to a TPA.
 - **Security.** Roles are checked on the server. Every sensitive action is audited. Files sit in a private store and are served only through an authenticated route.
 
-Stack: Next.js 16, React 19, TypeScript, Tailwind CSS v4, shadcn/ui, Drizzle ORM, Neon Postgres, Vercel Blob (private), Google Gemini, Vitest and Playwright. Hosted on Vercel, with functions in Mumbai.
+Stack: Next.js 16, React 19, TypeScript, Tailwind CSS v4, shadcn/ui, Drizzle ORM, Neon Postgres for records and private file bytes, Google Gemini, Vitest and Playwright. Hosted on Vercel, with functions in Mumbai. Uploads are limited to 4 MB per file; large photos are resized in the browser.
 
 ## Repository map
 
@@ -52,7 +52,7 @@ docs/           technical design, deployment, screenshots
 
 ## Run locally
 
-You need Node.js 24, pnpm, a Postgres database, a private Vercel Blob store and a Gemini API key. [docs/deployment.md](docs/deployment.md) lists every environment variable.
+You need Node.js 24, pnpm, a Postgres database and a Gemini API key. [docs/deployment.md](docs/deployment.md) lists every environment variable.
 
 ```sh
 pnpm install --frozen-lockfile

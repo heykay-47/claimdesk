@@ -52,12 +52,12 @@ Next.js 16 on Vercel, functions pinned to Mumbai (bom1)
   │     ├── src/ai/*          Gemini client (structured output) + fake for tests
   │     └── src/server/*      auth, audit, storage, uploads, packet
   ├──▶ Neon Postgres (Singapore): claims, rules, documents, fields, queries, audit
-  ├──▶ Vercel Blob, private store (Mumbai): document files, no public URLs
+  ├──▶ Postgres document_files (Singapore): private file bytes, no public URLs
   └──▶ Google Gemini API: classify + extract, summarise queries
 Vercel Cron (daily 03:00 IST) ──▶ /api/cron/reset-demo (bearer secret)
 ```
 
-The stack is Next.js 16 (App Router, React 19, TypeScript strict), Tailwind CSS v4 with shadcn/ui, Drizzle ORM on Neon Postgres, private Vercel Blob storage, the Google Gen AI SDK, zod, jose and bcryptjs. Tests run on Vitest and Playwright.
+The stack is Next.js 16 (App Router, React 19, TypeScript strict), Tailwind CSS v4 with shadcn/ui, Drizzle ORM on Neon Postgres for records and private file bytes, the Google Gen AI SDK, zod, jose and bcryptjs. Tests run on Vitest and Playwright.
 
 ### Why this shape
 
@@ -65,7 +65,7 @@ The stack is Next.js 16 (App Router, React 19, TypeScript strict), Tailwind CSS 
 - **Business rules are pure functions.** `src/domain/` has no database, network or framework imports. The checklist engine, the lifecycle table, the deadline rules and the identity check run the same way in the claim file, the worklist, the packet cover, the submission gate and the tests. The UI never re-implements a rule.
 - **Drizzle instead of Prisma.** Drizzle has no generated client and no binary engine, runs on Neon's serverless driver, and keeps migrations as plain committed SQL (`drizzle/`). The schema needed `UNIQUE NULLS NOT DISTINCT` for the rule scopes, which Drizzle expresses directly.
 - **Own session auth instead of an auth framework.** Two roles, a password login and an 8-hour session do not need OAuth flows. The session is an HS256 JWT holding only the user ID. Each protected operation reloads the user and role from Postgres, so a role change takes effect at once.
-- **Direct-to-Blob uploads.** Vercel functions cap request bodies at 4.5 MB, and phone scans are often larger. The server issues a five-minute token scoped to one path, MIME type and exact size. The browser uploads straight to the private store. The server then verifies the object before it records anything.
+- **Transactional file uploads.** One authenticated multipart request saves the document, file bytes and upload audit row in one transaction. Files are limited to 4 MB, below Vercel's 4.5 MB request-body limit. Large phone photos are resized in the browser to at most 2000 pixels on the longest side and encoded as JPEG at 0.85 quality. Larger PDFs must be compressed before upload.
 
 ## 4. Data model
 
@@ -80,7 +80,8 @@ The stack is Next.js 16 (App Router, React 19, TypeScript strict), Tailwind CSS 
 | `checklist_rules` | The configurable rules | scope (`payer_id`, `procedure_id`, either may be null), `stage`, `requirement` (REQUIRED / OPTIONAL / WAIVED), `max_age_hours`; unique per scope with `NULLS NOT DISTINCT` |
 | `claims` | One per admission | status, patient, policy, payer, procedure, money in paise, settlement and deduction |
 | `claim_events` | Timeline | every status change, actor, note, time |
-| `documents` | Uploaded files | private blob path, AI type, confidence, reason and answering model, review status, document date |
+| `documents` | Uploaded file metadata | file name, MIME type, size, AI type, confidence, reason and answering model, review status, document date; legacy `blob_pathname` contains a synthetic key for new rows |
+| `document_files` | Private file bytes | document ID primary key and cascading foreign key, non-null `bytea` content |
 | `extracted_fields` | Pre-auth field proposals | value, source snippet, confidence, PENDING / CONFIRMED / REJECTED, reviewer |
 | `queries` | TPA queries | original email, AI summary (JSON), `due_at`, reply, who answered and when |
 | `audit_logs` | Append-only trail | actor, action, entity, detail, IP |
@@ -149,7 +150,7 @@ When the head changes a rule, the screen first shows how many open claims it aff
 
 The client is `src/ai/gemini.ts` behind a two-method interface (`classifyAndExtract`, `summariseQuery`). Tests and the end-to-end suite use `src/ai/fake.ts` instead.
 
-- **Model:** `gemini-3.5-flash`, with `gemini-2.5-flash` and then `gemini-3.8-flash` as fallbacks. PDFs and images (JPEG, PNG, WebP up to 10 MB) are sent inline. Gemini reads both natively, which matters because doctors' notes are often handwritten phone photos.
+- **Model:** `gemini-3.5-flash`, with `gemini-2.5-flash` and then `gemini-3.8-flash` as fallbacks. PDFs and images (JPEG, PNG, WebP up to 4 MB) are sent inline. Gemini reads both natively, which matters because doctors' notes are often handwritten phone photos.
 - **Structured output:** every call sets a JSON `responseSchema`, and the result is validated again with zod. A schema violation is a failure and is never retried with a looser prompt.
 - **Prompt safety:** the system instruction treats document and email content as untrusted data, never as instructions. The classifier may only choose from the document-type catalogue, and the extractor may only fill fields from the pre-auth field registry, each with a verbatim source snippet.
 - **Nothing is auto-accepted.** A successful classification lands as `NEEDS_REVIEW`, and every extracted field lands as `PENDING`. Confidence below 0.75, or a type outside the catalogue, adds an “AI unsure” marker and sends the file to the unsorted tray. A misfiled document can be dragged to the right slot, or moved with a keyboard-accessible **Move to…** menu.
@@ -169,13 +170,13 @@ Patient records are sensitive personal data under the DPDP Act 2023. The demo im
 
 - **Role-based access on the server.** Every server action and route handler calls `requireUser()` or `requireRole("HEAD")`. Hiding a button is cosmetic only. The settings pages return a real HTTP 403 to an executive, and the rule-changing actions reject them independently. Both are tested.
 - **Audit log.** Append-only rows record sign-in, failed sign-in, sign-out, claim creation, each status change, upload, each document view or download, field confirmation and edit, rule change, query logging and reply, packet download and demo reset. The head can filter the log at `/settings/audit`.
-- **Private files.** Files live in a private Blob store. The browser never receives a public URL or a store credential. Every preview and download goes through `/api/documents/[id]/file`, which checks the session, writes an audit row and responds with `Cache-Control: private, no-store`.
+- **Private files.** File bytes live in Postgres and are saved atomically with their document metadata. The browser never receives a public URL or database credential. Every preview and download goes through `/api/documents/[id]/file`, which checks the session, writes an audit row and responds with `Cache-Control: private, no-store`.
 - **Sessions.** The cookie is httpOnly, `SameSite=Lax`, `Secure` in production, and expires after 8 hours. The upload endpoint also checks the `Origin` header. Failed sign-ins are rate-limited per account and per IP. Successful sign-ins never count, because reviewers share the demo accounts and often an office IP. That bug was found and fixed during production testing.
 - **Validation everywhere.** zod parses form input, API input, AI output and the session subject.
 - **Headers.** HSTS, `X-Content-Type-Options`, `X-Frame-Options: SAMEORIGIN`, `Referrer-Policy: no-referrer` and a restrictive `Permissions-Policy` are set.
 - **Secrets.** Secrets live only in environment variables (Vercel sensitive variables) and are never committed. The repository history was scanned before it was made public.
 
-**Hosting in India: what is and is not true.** The application functions and the document store run in Mumbai (Vercel `bom1`). The database runs in Singapore, because Neon has no India region, and Gemini processing may happen outside India. **This deployment therefore does not meet the India-hosting constraint, and it is approved only for synthetic data.** Before accepting real records, the production plan is:
+**Hosting in India: what is and is not true.** The application functions run in Mumbai (Vercel `bom1`). The database, including document bytes, runs in Singapore, and Gemini processing may happen outside India. **This deployment therefore does not meet the India-hosting constraint, and it is approved only for synthetic data.** Before accepting real records, the production plan is:
 
 1. Move Postgres to an India region (AWS RDS or Aurora in `ap-south-1`, or Supabase in Mumbai).
 2. Run the model under an India-region processing agreement (Gemini on Vertex AI in `asia-south1`, or an equivalent), or turn AI off. Manual sorting and entry still work, so the product does not depend on AI.
@@ -209,13 +210,13 @@ The IRDAI windows (1 hour for cashless decisions, 3 hours for discharge) are sho
 | --- | --- | --- | --- |
 | Unit | Vitest | 93 | Every precedence tier, waivers, freshness boundaries, every slot state, unsorted and mismatch blockers, required fields, illegal transitions, gates, deadline states at their boundaries, patient-name matching (32 cases of Indian name forms), AI review rules, packet contents, insights arithmetic, session tokens, the login limiter |
 | AI client | Vitest with a stubbed SDK | 9 | Fallback on 429/503/504/timeout, no retry on 400/401 or invalid output, model back-off, Gemini 2.5 thinking budget |
-| Integration | Vitest, real Postgres | 27 | Role enforcement in server functions, the three sample claims' checklists, submission gate refusal, uploads with the fake AI, AI failure to unsorted, move and confirm, query logging and deadlines, last reply returns the claim to pre-auth, executive blocked from rule changes, packet contents |
+| Integration | Vitest, real Postgres | 30 | Role enforcement in server functions, the three sample claims' checklists, submission gate refusal, transactional uploads with fake AI, stored-file round trips and audits, upload size and MIME checks, origin and session checks, rollback and cascade deletion, AI failure to unsorted, move and confirm, query logging and deadlines, last reply returns the claim to pre-auth, executive blocked from rule changes, packet contents |
 | End to end | Playwright, production build | 5 | The journeys in section 6 for both roles, run against `pnpm build && pnpm start` |
 | Production smoke | Real Gemini, live deployment | manual | Section 7 measurements, cron authorisation (401 without the secret, 200 with it), login and upload on the live site |
 
 Integration tests run inside a unique Postgres schema within a transaction that is rolled back, so they never change the demo data. The end-to-end suite uses the fake AI client for determinism. It removes only the claims and files it created, then reseeds.
 
-Last full run, on 7 November 2026: `pnpm lint` and `pnpm exec tsc --noEmit` were clean, `pnpm test` passed 129 of 129, `pnpm test:e2e` passed 5 of 5 against a production build in 3.9 minutes, and `pnpm build` succeeded. After the last deploy, a real-Gemini check on production flagged a wrong-patient note in the claim header in 8.6 seconds.
+Last local full run, on 9 November 2026: `pnpm lint` and `pnpm exec tsc --noEmit` were clean, `pnpm test` passed 132 of 132, `pnpm test:e2e` passed 5 of 5 against a production build in 3.8 minutes, and `pnpm build` succeeded. A separate local production server used real Gemini to classify a renamed ultrasound PDF into the Ultrasound slot at 99% confidence. Seeded preview and a seven-page packet download passed. No deployment was performed. [Storage migration evidence](postgres-storage-report.md) records the checks.
 
 ## 11. Assumptions
 
@@ -229,6 +230,7 @@ These are explicitly mine, not the client's:
 - One deduction reason is captured per settlement, from a fixed list: missing document, non-payable item, room-rent cap, co-pay, or other.
 - The desk head is the “admin” in the problem statement. There is no separate administrator role.
 - The demo resets daily at 03:00 IST, so reviewers always find the same story with current timestamps.
+- Files are stored in Postgres with a 4 MB per-file upload limit. This replaced the suspended Blob store. Existing seeded files are recreated by reset; other old files require re-upload.
 
 ## 12. Scope cuts and future work
 
@@ -239,7 +241,7 @@ Cut on purpose, in order of what I would build next:
 3. **India-resident production hosting** (section 8).
 4. **AI evaluation on a labelled set** of anonymised real documents, to tune the 0.75 threshold per document type.
 5. **Background processing** for large batches. AI currently runs within the upload request, inside a 60-second limit. That is fine for the desk's one-file-at-a-time pattern, but not for bulk import.
-6. **Operational hardening:** a shared rate-limit store, insert-only audit privileges, cleanup of orphaned uploads, and a non-Latin font for packet cover sheets.
+6. **Operational hardening:** a shared rate-limit store, insert-only audit privileges, database file-retention policies, and a non-Latin font for packet cover sheets.
 7. **Notifications** for queries that become due soon, by email or WhatsApp. The problem statement mentions WhatsApp chasing.
 
 ## 13. How this was built

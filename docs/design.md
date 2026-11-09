@@ -26,15 +26,15 @@ The login limit counts only failed attempts: five per IP and email pair, plus th
 
 ## AI and private files
 
-The Gemini adapter uses an explicit response schema and validates JSON with Zod. Files are limited to 10 MB. Phase 2 supersedes the original single-model 25-second timeout with an overall 45-second budget shared between the primary model and configured fallbacks. Only transient 429, 503, 504, unavailable and timeout failures permit fallback. Invalid request or output validation errors stop immediately. The document’s AI reason records the answering model. A model that fails transiently is skipped for five minutes on that instance, so an exhausted quota costs one fast 429 instead of a wait on every upload.
+The Gemini adapter uses an explicit response schema and validates JSON with Zod. Uploads are limited to 4 MB. Phase 2 supersedes the original single-model 25-second timeout with an overall 45-second budget shared between the primary model and configured fallbacks. Only transient 429, 503, 504, unavailable and timeout failures permit fallback. Invalid request or output validation errors stop immediately. The document’s AI reason records the answering model. A model that fails transiently is skipped for five minutes on that instance, so an exhausted quota costs one fast 429 instead of a wait on every upload.
 
 `classifyForReview` always returns `NEEDS_REVIEW` on success. Proposed fields remain `PENDING`. Low confidence and unknown catalogue keys add an `AI unsure` marker. Failures return `FAILED` with a safe error message, no document type, and no proposed fields. Query failure returns no summary and an error so the caller can keep the original email visible.
 
 The query AI contract returns `deadline_iso`. Persist it as `queries.due_at` through `queryDueAt`; otherwise use the payer's reply window. The JSON summary's `deadline_text` is presentation metadata, not the authoritative deadline.
 
-Phase 2 uses scoped direct browser uploads to keep the full 10 MB limit deployable. A five-minute token permits one user-scoped path, one MIME type and the exact declared file size, with overwrites disabled. The completion route checks the authenticated actor’s upload permission, reconstructs the path rather than accepting an arbitrary URL, verifies the private object’s type and size, and records the document and audit row in one transaction. Repeated completion does not duplicate document or extraction records. Interrupted uploads before completion do not create blocking placeholder documents; orphan-object lifecycle cleanup is a production operational follow-up.
+Uploads use one authenticated, same-origin multipart POST. The server validates the claim ID, file size and PDF/PNG/JPEG/WebP MIME allowlist, then stores metadata, bytes and an audit row in one transaction. AI classification uses the same in-memory bytes after commit. Large photos are resized in the browser to at most 2000 pixels on the longest side and encoded as JPEG at 0.85 quality. Files still above 4 MB, including PDFs, are rejected with instructions to compress them. Migration 0003 adds the file table without changing existing document columns.
 
-The authenticated file route checks the session, looks up the document, reads a private stream, and inserts a view or download audit row. Responses disable browser caching and allow only same-origin framing. The browser sees a scoped upload pathname, not a public read link or store credential. Previews and downloads only use the authenticated application route.
+The authenticated file route checks the session, looks up the document, reads its bytes from Postgres, and inserts a view or download audit row. Responses disable browser caching and allow only same-origin framing. No public file URL or database credential reaches the browser. Previews and downloads only use the authenticated application route.
 
 ## Patient identity checks
 
@@ -44,7 +44,7 @@ The document stores original identity values and source snippets separately from
 
 A persisted mismatch flag was rejected because it could become stale. Comparing only editable field values was rejected because a field edit or rejection could hide the original contradiction. The chosen design compares immutable evidence at evaluation time. A separate override records the actor and time. The checklist engine adds identity blockers before other blockers, excludes these documents from slot satisfaction, and excludes their fields from pre-auth readiness. Packet export uses the same identity decision for attachments and confirmed cover values.
 
-Normal document confirmation and field confirmation reject an unresolved mismatch on the server. The explicit same-patient action confirms the document and appends `DOCUMENT_IDENTITY_OVERRIDE` with the actor and compared evidence. Moving a document or rejecting a field does not remove the mismatch. Removal requires confirmation, sets `removed_at` and `removed_by`, and appends `DOCUMENT_REMOVE`. Removed documents and their values disappear from claim views and checklist evaluation. Their private file route returns 404. The private object remains under the existing retention boundary rather than being deleted during the database transaction.
+Normal document confirmation and field confirmation reject an unresolved mismatch on the server. The explicit same-patient action confirms the document and appends `DOCUMENT_IDENTITY_OVERRIDE` with the actor and compared evidence. Moving a document or rejecting a field does not remove the mismatch. Removal requires confirmation, sets `removed_at` and `removed_by`, and appends `DOCUMENT_REMOVE`. Removed documents and their values disappear from claim views and checklist evaluation. Their private file route returns 404. File bytes remain until the document row is physically deleted, at which point the foreign key cascades deletion.
 
 `UNKNOWN` is not a positive identity verification. Documents without readable identity remain subject to normal human confirmation. Spelling variants, aliases, and transliteration require a person to inspect the source. The synthetic demo remains unsuitable for real patient records without the privacy work below.
 
@@ -60,7 +60,7 @@ The visual system uses stone surfaces, 1 px borders, Geist sans, mono numerals, 
 
 ## Residency and privacy
 
-The take-home environment uses a Singapore Neon database and Mumbai private Blob storage. Gemini processing can transfer data outside India. These choices do not satisfy the problem statement's India-hosting requirement for real patient records.
+The take-home environment uses a Singapore Neon database for records and document bytes, with application functions in Mumbai. Gemini processing can transfer data outside India. These choices do not satisfy the problem statement's India-hosting requirement for real patient records.
 
 Every seeded patient and record is fictional. Each generated file carries `SYNTHETIC — FICTIONAL PATIENT`. No production use or legal compliance is claimed.
 

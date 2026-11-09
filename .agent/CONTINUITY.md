@@ -1,6 +1,7 @@
 # ClaimDesk foundation
 
 ## [PLANS]
+- 2026-11-09 [USER] Postgres storage replacement is implemented and verified locally. No push or deployment. See docs/postgres-storage-report.md.
 - 2026-11-07 [USER] Patient-identity guard is implemented and verified locally. No push or deployment is authorized. See docs/patient-identity-report.md.
 - 2026-11-07 [USER] Phase 3 is implemented and verified locally. Parent review and push remain explicitly outside this subagent's authorization. See docs/phase-3-report.md.
 - 2026-11-07 [USER] Phase 2 supersedes the earlier Phase 1-only scope. Core product screens and audited DB workflows are implemented. Deployment remains the parent session’s next phase.
@@ -8,6 +9,7 @@
 - [TOOL] Foundation implemented and verified except real Gemini success. Provider 503/504 blocks that acceptance check. See docs/phase-1-report.md for the handoff.
 
 ## [DECISIONS]
+- 2026-11-09 [CODE] Supersedes the earlier direct-Blob upload decision. `document_files(document_id, content bytea)` owns bytes with a cascading FK. Keep `documents.blob_pathname` unchanged for additive compatibility and use synthetic `postgres/<id>` keys for new rows. Upload metadata, bytes and audit commit together, then AI reads in-memory bytes. Upload limit is 4 MB; large images are resized client-side.
 - [CODE] Patient identity uses immutable per-document evidence, not editable pre-auth values. An explicit audited override is separate from normal confirmation. Removed documents retain audit history and private blobs but are excluded from reads, readiness, candidates, and exports.
 - [CODE] Domain tables own rule precedence and lifecycle actions. Checklist evaluation requires explicit stage and reviewed fields as its fourth argument.
 - [CODE] All unconfirmed unsorted documents block, including processing and failed uploads. Date-only freshness uses IST midnight.
@@ -15,6 +17,7 @@
 - [CODE] Integration tests use a new schema inside a transaction, copy seeded fixtures, and roll back everything.
 
 ## [PROGRESS]
+- 2026-11-09 [TOOL] Migration 0003 passed in an isolated rolled-back schema before shared migration. Final lint, TypeScript, 132 tests, all five production E2E journeys, build and private storage smoke pass. Local production browser preview rendered seeded PDF; real Gemini 3.5 classified renamed ultrasound at 99%, persisted identical bytes, and confirmation allowed a seven-page packet download. Large-image resize and oversized-PDF message passed UI checks. Final reseed and DB assertions restore 10 claims, 66 documents/files, 110 fields, 3 queries and 66 identities with no missing files, mismatches, E2E claims or browser uploads. No deployment.
 - 2026-11-07 [TOOL] Identity guard passes lint, TypeScript, 129 tests with observed exit 0, five production E2E journeys, standalone build, and desktop/mobile browser verification. Migration 0002 is applied. Final reseed restores 10 claims, 66 docs, 110 fields, 3 queries, and 66 identity snapshots. No temporary warning fixtures or E2E claims remain. New warning screenshot is docs/screenshots/patient-mismatch-desktop.png.
 - 2026-11-07 [TOOL] Final checks pass: lint, TypeScript, 91 tests, five serial production-build Playwright journeys, build and real AI smoke 2/2 through configured Gemini 2.5 fallback. All eleven screenshots recaptured and inspected at 1440 px desktop / 390 px phone, with no horizontal page overflow. Final DB reset restores 10 claims, 66 docs, 110 fields, 3 queries, 37 events and 19 rules; no E2E claims remain.
 - [TOOL] Head-confirmed reset and cron authorization verified on the production artifact. Early Proxy role read fixes streamed forbidden pages returning HTTP 200; actual executive settings HTTP response is now 403 and actions independently reject the role. Test cleanup removes its own Blob upload and created claims, then reseeds.
@@ -34,6 +37,7 @@
 - [TOOL] Private Blob put/read SHA-256 round trip passed.
 
 ## [DISCOVERIES]
+- 2026-11-09 [TOOL] One local production packet retry was needed after Neon fetch ENETUNREACH in claim lookup. Retry downloaded the verified packet. Storage migration cannot recover inaccessible non-seed Blob bytes; existing metadata is retained and those files require re-upload.
 - [CODE] A late AI extraction previously disappeared after manual sorting. Identity evidence now persists without overwriting human classification. Unicode name normalization must retain combining marks or different Indian-script names can collapse to the same consonants.
 - [CODE] Phase 2 supersedes the single-request upload design with scoped direct private Blob uploads, avoiding deployment request-body limits for 10 MB files. Authenticated completion verifies type, size, actor and pathname; retries are idempotent. Interrupted uploads can leave orphan private objects and need production lifecycle cleanup.
 - [CODE] db() now uses Neon Pool with poolQueryViaFetch for ordinary reads and WebSocket interactive transactions for atomic mutations. A late AI result does not overwrite a human move or confirmation.
